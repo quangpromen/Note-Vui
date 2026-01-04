@@ -1,0 +1,169 @@
+# ==============================================================================
+# FLUTTER / DART
+# ==============================================================================
+
+# Flutter/Dart/Pub related
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+/build/
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.gr.dart
+*.mocks.dart
+
+# Coverage & Testing
+/coverage/
+**/doc/api/
+*.lcov
+
+# ==============================================================================
+# ENVIRONMENT & SECRETS (QUAN TRỌNG!)
+# ==============================================================================
+
+# Environment files - KHÔNG COMMIT!
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.production
+
+# API Keys & Secrets
+secrets.dart
+secrets.json
+**/secrets/
+google-services.json
+GoogleService-Info.plist
+
+# Firebase
+firebase_options.dart
+
+# ==============================================================================
+# ANDROID
+# ==============================================================================
+
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/.gradle/
+/android/captures/
+/android/gradlew
+/android/gradlew.bat
+/android/local.properties
+**/android/**/GeneratedPluginRegistrant.*
+*.apk
+*.aab
+
+# ==============================================================================
+# iOS / macOS
+# ==============================================================================
+
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/macos/Pods/
+**/macos/Flutter/Flutter-Debug.xcconfig
+**/macos/Flutter/Flutter-Release.xcconfig
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+*.ipa
+
+# Xcode
+*.xcworkspace
+*.xcuserstate
+xcuserdata/
+
+# ==============================================================================
+# WEB
+# ==============================================================================
+
+/web/.dart_tool/
+/web/.packages
+
+# ==============================================================================
+# WINDOWS / LINUX
+# ==============================================================================
+
+/windows/flutter/ephemeral/
+/linux/flutter/ephemeral/
+
+# ==============================================================================
+# IDE & EDITORS
+# ==============================================================================
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code (uncomment nếu không muốn share settings)
+# .vscode/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ==============================================================================
+# OS GENERATED
+# ==============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ==============================================================================
+# MISCELLANEOUS
+# ==============================================================================
+
+*.class
+*.log
+*.pyc
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Lock files (optional - some teams commit these)
+# pubspec.lock
