@@ -4,8 +4,10 @@
 // utility in the flutter_test package.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:my_flutter_app/features/notes/data/models/note_model.dart';
 import 'package:my_flutter_app/features/notes/domain/note_service.dart';
 import 'package:my_flutter_app/main.dart';
 
@@ -13,6 +15,10 @@ void main() {
   late NoteService noteService;
 
   setUpAll(() async {
+    // Initialize Hive for testing
+    await Hive.initFlutter();
+    Hive.registerAdapter(NoteModelAdapter());
+
     // Initialize Vietnamese locale for date formatting
     await initializeDateFormatting('vi_VN', null);
   });

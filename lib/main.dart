@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/notes/data/repositories/note_repository.dart';
 import 'features/notes/domain/note_service.dart';
 import 'features/notes/presentation/screens/home_screen.dart';
 
@@ -13,17 +14,31 @@ import 'features/notes/presentation/screens/home_screen.dart';
 /// - Nunito typography
 /// - AI-powered features
 /// - Staggered grid layout
+/// - Hive database for unlimited storage
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Vietnamese locale for date formatting
-  await initializeDateFormatting('vi_VN', null);
+  // Initialize all required services in order
+  await _initializeApp();
 
-  // Initialize the note service and load existing notes
+  // Create and initialize the note service
   final noteService = NoteService();
   await noteService.initialize();
 
   runApp(GhiChuVietApp(noteService: noteService));
+}
+
+/// Initializes all app dependencies in the correct order.
+///
+/// Order matters:
+/// 1. Hive database (must be first for storage)
+/// 2. Date formatting (for Vietnamese locale)
+Future<void> _initializeApp() async {
+  // Initialize Hive database and register adapters
+  await NoteRepository.initialize();
+
+  // Initialize Vietnamese locale for date formatting
+  await initializeDateFormatting('vi_VN', null);
 }
 
 /// Root widget for the Ghi Chú Việt application.

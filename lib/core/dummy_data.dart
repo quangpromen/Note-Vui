@@ -15,7 +15,7 @@ class DummyData {
   /// - Personal goals
   /// - Event planning
   static final List<NoteModel> notes = [
-    NoteModel(
+    NoteModel.withColor(
       id: '1',
       title: 'Đi chợ mua rau',
       content:
@@ -23,7 +23,7 @@ class DummyData {
       createdAt: DateTime(2026, 1, 4),
       backgroundColor: AppColors.pastelColors[0],
     ),
-    NoteModel(
+    NoteModel.withColor(
       id: '2',
       title: 'Ý tưởng Marketing',
       content:
@@ -31,7 +31,7 @@ class DummyData {
       createdAt: DateTime(2026, 1, 3),
       backgroundColor: AppColors.pastelColors[1],
     ),
-    NoteModel(
+    NoteModel.withColor(
       id: '3',
       title: 'Học tiếng Anh',
       content:
@@ -39,7 +39,7 @@ class DummyData {
       createdAt: DateTime(2026, 1, 2),
       backgroundColor: AppColors.pastelColors[2],
     ),
-    NoteModel(
+    NoteModel.withColor(
       id: '4',
       title: 'Công thức Phở Bò',
       content:
@@ -47,7 +47,7 @@ class DummyData {
       createdAt: DateTime(2026, 1, 1),
       backgroundColor: AppColors.pastelColors[3],
     ),
-    NoteModel(
+    NoteModel.withColor(
       id: '5',
       title: 'Mục tiêu năm 2026',
       content:
@@ -55,7 +55,7 @@ class DummyData {
       createdAt: DateTime(2025, 12, 28),
       backgroundColor: AppColors.pastelColors[4],
     ),
-    NoteModel(
+    NoteModel.withColor(
       id: '6',
       title: 'Sinh nhật Mẹ',
       content:

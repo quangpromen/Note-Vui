@@ -1,35 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+
+part 'note_model.g.dart';
 
 /// Represents a single note in the application.
+///
+/// This model is annotated for Hive database storage, allowing efficient
+/// persistence without size limitations.
 ///
 /// Each note contains:
 /// - A unique identifier
 /// - A title and content
 /// - Creation timestamp
 /// - A pastel background color for visual distinction
-class NoteModel {
+@HiveType(typeId: 0)
+class NoteModel extends HiveObject {
   /// Unique identifier for the note
+  @HiveField(0)
   final String id;
 
   /// Title of the note (displayed prominently on cards)
+  @HiveField(1)
   final String title;
 
   /// Main content/body of the note
+  @HiveField(2)
   final String content;
 
   /// When the note was created
+  @HiveField(3)
   final DateTime createdAt;
 
-  /// Pastel background color for the note card
-  final Color backgroundColor;
+  /// Background color stored as ARGB integer for Hive compatibility
+  @HiveField(4)
+  final int backgroundColorValue;
 
-  const NoteModel({
+  /// Getter to convert stored int back to Color
+  Color get backgroundColor => Color(backgroundColorValue);
+
+  /// Primary constructor used by Hive for deserialization
+  /// Accepts backgroundColorValue directly as int
+  NoteModel({
     required this.id,
     required this.title,
     required this.content,
     required this.createdAt,
-    required this.backgroundColor,
+    required this.backgroundColorValue,
   });
+
+  /// Named constructor for creating notes with Color object
+  /// Converts Color to int for storage
+  NoteModel.withColor({
+    required this.id,
+    required this.title,
+    required this.content,
+    required this.createdAt,
+    required Color backgroundColor,
+  }) : backgroundColorValue = backgroundColor.toARGB32();
 
   /// Creates a copy of this note with optional parameter overrides.
   /// Useful for updating notes immutably.
@@ -45,29 +72,31 @@ class NoteModel {
       title: title ?? this.title,
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
-      backgroundColor: backgroundColor ?? this.backgroundColor,
+      backgroundColorValue: backgroundColor?.toARGB32() ?? backgroundColorValue,
     );
   }
 
-  /// Converts the note to a JSON-compatible Map for storage.
+  /// Converts the note to a JSON-compatible Map.
+  /// Kept for backwards compatibility and potential API use.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
       'content': content,
       'createdAt': createdAt.toIso8601String(),
-      'backgroundColor': backgroundColor.toARGB32(),
+      'backgroundColor': backgroundColorValue,
     };
   }
 
   /// Creates a NoteModel from a JSON Map.
+  /// Useful for API responses or migration from other storage.
   factory NoteModel.fromJson(Map<String, dynamic> json) {
     return NoteModel(
       id: json['id'] as String,
       title: json['title'] as String,
       content: json['content'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      backgroundColor: Color(json['backgroundColor'] as int),
+      backgroundColorValue: json['backgroundColor'] as int,
     );
   }
 
