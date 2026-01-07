@@ -31,6 +31,7 @@ class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   bool _isSaving = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -142,6 +143,137 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
+  /// Shows delete confirmation dialog and deletes note if confirmed
+  Future<void> _showDeleteConfirmation() async {
+    if (widget.note == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                CupertinoIcons.trash,
+                color: Colors.red.shade400,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Xóa ghi chú?',
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc muốn xóa ghi chú này không? Hành động này không thể hoàn tác.',
+          style: GoogleFonts.nunito(
+            fontSize: 15,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade400,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Xóa',
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() {
+        _isDeleting = true;
+      });
+
+      try {
+        await widget.noteService.deleteNote(widget.note!.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(CupertinoIcons.trash, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Đã xóa ghi chú!',
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red.shade400,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(CupertinoIcons.xmark_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Lỗi khi xóa ghi chú!',
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isDeleting = false;
+          });
+        }
+      }
+    }
+  }
+
   /// Shows a save confirmation snackbar
   void _showSaveConfirmation() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -180,6 +312,11 @@ class _EditorScreenState extends State<EditorScreen> {
     return AppBar(
       leading: _buildBackButton(),
       actions: [
+        // Show delete button only when editing existing note
+        if (widget.note != null) ...[
+          _buildDeleteButton(),
+          const SizedBox(width: 8),
+        ],
         _buildAIButton(),
         const SizedBox(width: 12),
         _buildSaveButton(),
@@ -210,6 +347,38 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       ),
       onPressed: () => Navigator.pop(context),
+    );
+  }
+
+  Widget _buildDeleteButton() {
+    return GestureDetector(
+      onTap: _isDeleting ? null : _showDeleteConfirmation,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: _isDeleting ? Colors.red.shade100 : Colors.red.shade50,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: _isDeleting
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.red.shade400,
+                  ),
+                ),
+              )
+            : Icon(CupertinoIcons.trash, size: 20, color: Colors.red.shade400),
+      ),
     );
   }
 
