@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/dummy_data.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/note_model.dart';
+import '../../domain/note_service.dart';
 import '../widgets/note_card.dart';
 import '../widgets/soft_fab.dart';
 import '../widgets/soft_search_bar.dart';
@@ -18,7 +18,9 @@ import 'editor_screen.dart';
 /// - Staggered/Masonry grid layout for notes
 /// - FAB for creating new notes
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final NoteService noteService;
+
+  const HomeScreen({super.key, required this.noteService});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -26,28 +28,46 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<NoteModel> _filteredNotes = DummyData.notes;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for changes in NoteService
+    widget.noteService.addListener(_onNotesChanged);
+  }
 
   @override
   void dispose() {
+    widget.noteService.removeListener(_onNotesChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onNotesChanged() {
+    // Rebuild when notes change
+    setState(() {});
+  }
+
+  /// Gets filtered notes based on search query
+  List<NoteModel> get _filteredNotes {
+    final notes = widget.noteService.notes;
+    if (_searchQuery.isEmpty) {
+      return notes;
+    }
+    return notes
+        .where(
+          (note) =>
+              note.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              note.content.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
+        .toList();
   }
 
   /// Filters notes based on search query (searches in title and content)
   void _filterNotes(String query) {
     setState(() {
-      if (query.isEmpty) {
-        _filteredNotes = DummyData.notes;
-      } else {
-        _filteredNotes = DummyData.notes
-            .where(
-              (note) =>
-                  note.title.toLowerCase().contains(query.toLowerCase()) ||
-                  note.content.toLowerCase().contains(query.toLowerCase()),
-            )
-            .toList();
-      }
+      _searchQuery = query;
     });
   }
 
@@ -64,10 +84,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Navigates to the editor screen
-  void _navigateToEditor([NoteModel? note]) {
-    Navigator.push(
+  void _navigateToEditor([NoteModel? note]) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => EditorScreen(note: note)),
+      MaterialPageRoute(
+        builder: (context) =>
+            EditorScreen(note: note, noteService: widget.noteService),
+      ),
     );
   }
 
@@ -138,15 +161,48 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNotesGrid() {
+    final notes = _filteredNotes;
+
+    if (notes.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(48),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.note_add_outlined,
+                  size: 64,
+                  color: AppColors.textHint.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _searchQuery.isEmpty
+                      ? 'Chưa có ghi chú nào.\nHãy tạo ghi chú đầu tiên!'
+                      : 'Không tìm thấy ghi chú phù hợp.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.nunito(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textHint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       sliver: SliverMasonryGrid.count(
         crossAxisCount: 2,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childCount: _filteredNotes.length,
+        childCount: notes.length,
         itemBuilder: (context, index) {
-          final note = _filteredNotes[index];
+          final note = notes[index];
           return NoteCard(note: note, onTap: () => _navigateToEditor(note));
         },
       ),

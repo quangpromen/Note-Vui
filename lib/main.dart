@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/notes/domain/note_service.dart';
 import 'features/notes/presentation/screens/home_screen.dart';
 
 /// Entry point for the "Ghi Chú Việt" (Viet Note) application.
@@ -12,11 +13,17 @@ import 'features/notes/presentation/screens/home_screen.dart';
 /// - Nunito typography
 /// - AI-powered features
 /// - Staggered grid layout
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   // Initialize Vietnamese locale for date formatting
-  initializeDateFormatting('vi_VN', null).then((_) {
-    runApp(const GhiChuVietApp());
-  });
+  await initializeDateFormatting('vi_VN', null);
+
+  // Initialize the note service and load existing notes
+  final noteService = NoteService();
+  await noteService.initialize();
+
+  runApp(GhiChuVietApp(noteService: noteService));
 }
 
 /// Root widget for the Ghi Chú Việt application.
@@ -26,7 +33,9 @@ void main() {
 /// - Vietnamese-friendly fonts
 /// - Pastel color scheme
 class GhiChuVietApp extends StatelessWidget {
-  const GhiChuVietApp({super.key});
+  final NoteService noteService;
+
+  const GhiChuVietApp({super.key, required this.noteService});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +43,7 @@ class GhiChuVietApp extends StatelessWidget {
       title: 'Ghi Chú Việt',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
+      home: HomeScreen(noteService: noteService),
     );
   }
 }

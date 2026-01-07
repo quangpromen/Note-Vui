@@ -49,6 +49,28 @@ class NoteModel {
     );
   }
 
+  /// Converts the note to a JSON-compatible Map for storage.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'createdAt': createdAt.toIso8601String(),
+      'backgroundColor': backgroundColor.toARGB32(),
+    };
+  }
+
+  /// Creates a NoteModel from a JSON Map.
+  factory NoteModel.fromJson(Map<String, dynamic> json) {
+    return NoteModel(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      content: json['content'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      backgroundColor: Color(json['backgroundColor'] as int),
+    );
+  }
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

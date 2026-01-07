@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/note_model.dart';
+import '../../domain/note_service.dart';
 import '../widgets/ai_bottom_sheet.dart';
 
 /// Note editor screen for creating and editing notes.
@@ -17,7 +18,10 @@ class EditorScreen extends StatefulWidget {
   /// Optional note to edit. If null, creates a new note.
   final NoteModel? note;
 
-  const EditorScreen({super.key, this.note});
+  /// The note service for saving notes
+  final NoteService noteService;
+
+  const EditorScreen({super.key, this.note, required this.noteService});
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -26,6 +30,7 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -46,6 +51,95 @@ class _EditorScreenState extends State<EditorScreen> {
   /// Shows the AI support bottom sheet
   void _showAIBottomSheet() {
     AIBottomSheet.show(context);
+  }
+
+  /// Saves the note to storage
+  Future<void> _saveNote() async {
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+
+    // Validate that at least title or content is not empty
+    if (title.isEmpty && content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_circle,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Vui lòng nhập tiêu đề hoặc nội dung!',
+                style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      if (widget.note != null) {
+        // Update existing note
+        await widget.noteService.updateNote(
+          id: widget.note!.id,
+          title: title.isNotEmpty ? title : 'Không có tiêu đề',
+          content: content,
+        );
+      } else {
+        // Create new note
+        await widget.noteService.addNote(
+          title: title.isNotEmpty ? title : 'Không có tiêu đề',
+          content: content,
+        );
+      }
+
+      if (mounted) {
+        _showSaveConfirmation();
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(CupertinoIcons.xmark_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(
+                  'Lỗi khi lưu ghi chú!',
+                  style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   /// Shows a save confirmation snackbar
@@ -158,11 +252,13 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Widget _buildSaveButton() {
     return GestureDetector(
-      onTap: _showSaveConfirmation,
+      onTap: _isSaving ? null : _saveNote,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          color: _isSaving
+              ? AppColors.primary.withValues(alpha: 0.5)
+              : AppColors.primary,
           borderRadius: BorderRadius.circular(50),
           boxShadow: [
             BoxShadow(
@@ -175,11 +271,20 @@ class _EditorScreenState extends State<EditorScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              CupertinoIcons.checkmark_alt,
-              size: 18,
-              color: Colors.white,
-            ),
+            _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(
+                    CupertinoIcons.checkmark_alt,
+                    size: 18,
+                    color: Colors.white,
+                  ),
             const SizedBox(width: 6),
             Text(
               'Lưu',

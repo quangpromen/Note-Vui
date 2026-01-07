@@ -43,6 +43,9 @@ dependencies:
   
   # For date formatting with Vietnamese locale
   intl: ^0.19.0
+  
+  # For local storage persistence
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
