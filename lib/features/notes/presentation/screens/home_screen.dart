@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/note_card.dart';
+import '../widgets/note_skeleton.dart';
 import '../widgets/soft_fab.dart';
 import '../widgets/soft_search_bar.dart';
 import 'editor_screen.dart';
@@ -162,6 +163,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildNotesGrid() {
     final notes = _filteredNotes;
+    final isLoading = widget.noteService.isLoading;
+
+    if (isLoading && notes.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        sliver: SliverMasonryGrid.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childCount: 6, // Show 6 skeleton items
+          itemBuilder: (context, index) => const NoteSkeleton(),
+        ),
+      );
+    }
 
     if (notes.isEmpty) {
       return SliverToBoxAdapter(
