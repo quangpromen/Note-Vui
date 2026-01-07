@@ -4,7 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/theme/app_theme.dart';
 import 'features/notes/data/repositories/note_repository.dart';
 import 'features/notes/domain/note_service.dart';
-import 'features/notes/presentation/screens/home_screen.dart';
+import 'features/notes/presentation/screens/splash_screen.dart';
 
 /// Entry point for the "Ghi Chú Việt" (Viet Note) application.
 ///
@@ -15,6 +15,7 @@ import 'features/notes/presentation/screens/home_screen.dart';
 /// - AI-powered features
 /// - Staggered grid layout
 /// - Hive database for unlimited storage
+/// - Professional Splash Screen and Mint Green branding
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -46,7 +47,7 @@ Future<void> _initializeApp() async {
 /// Sets up the MaterialApp with:
 /// - Custom Soft UI theme
 /// - Vietnamese-friendly fonts
-/// - Pastel color scheme
+/// - Green/Mint color scheme
 class GhiChuVietApp extends StatelessWidget {
   final NoteService noteService;
 
@@ -58,7 +59,7 @@ class GhiChuVietApp extends StatelessWidget {
       title: 'Ghi Chú Việt',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: HomeScreen(noteService: noteService),
+      home: SplashScreen(noteService: noteService),
     );
   }
 }

@@ -49,21 +49,21 @@ class AppColors {
   // PRIMARY ACCENT COLORS
   // ============================================================================
 
-  /// Primary accent color - Soft blue for interactive elements
-  static const Color primary = Color(0xFF7EB8DA);
+  /// Primary accent color - Soft mint green from logo
+  static const Color primary = Color(0xFF96E6A1);
 
   /// Primary light variant - For hover states and backgrounds
-  static const Color primaryLight = Color(0xFFB8DCF0);
+  static const Color primaryLight = Color(0xFFD4F5DA);
 
   // ============================================================================
   // FAB (Floating Action Button) GRADIENT COLORS
   // ============================================================================
 
-  /// FAB gradient start color - Pastel pink
-  static const Color fabStart = Color(0xFFFFB6C1);
+  /// FAB gradient start color - Mint Green
+  static const Color fabStart = Color(0xFFA8E6CF);
 
-  /// FAB gradient end color - Sky blue
-  static const Color fabEnd = Color(0xFF87CEEB);
+  /// FAB gradient end color - Soft Green
+  static const Color fabEnd = Color(0xFF96E6A1);
 
   // ============================================================================
   // AI FEATURE COLORS
