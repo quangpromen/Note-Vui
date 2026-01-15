@@ -61,13 +61,68 @@ class NoteRepository {
 
   /// Updates an existing note in the database.
   ///
+  /// Automatically sets the [updatedAt] field to the current timestamp
+  /// before saving to track modification history.
+  ///
   /// Throws [NoteNotFoundException] if the note doesn't exist.
   Future<void> updateNote(NoteModel note) async {
     final box = await _getBox();
     if (!box.containsKey(note.id)) {
       throw NoteNotFoundException(note.id);
     }
-    await box.put(note.id, note);
+
+    // Automatically set updatedAt to current time before saving
+    final updatedNote = note.copyWith(updatedAt: DateTime.now());
+    await box.put(note.id, updatedNote);
+  }
+
+  /// Searches notes by query string.
+  ///
+  /// Returns notes where the [query] appears in:
+  /// - Title
+  /// - Content
+  /// - Any tag in the tags list
+  ///
+  /// Search is case-insensitive for better user experience.
+  /// Results are sorted by creation date (newest first).
+  Future<List<NoteModel>> searchNotes(String query) async {
+    final box = await _getBox();
+    final allNotes = box.values.toList();
+
+    // Empty query returns all notes
+    if (query.trim().isEmpty) {
+      allNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return allNotes;
+    }
+
+    final lowerQuery = query.toLowerCase();
+
+    // Filter notes where query matches title, content, or any tag
+    final filteredNotes = allNotes.where((note) {
+      // Check title
+      if (note.title.toLowerCase().contains(lowerQuery)) {
+        return true;
+      }
+
+      // Check content
+      if (note.content.toLowerCase().contains(lowerQuery)) {
+        return true;
+      }
+
+      // Check tags - return true if any tag contains the query
+      for (final tag in note.tags) {
+        if (tag.toLowerCase().contains(lowerQuery)) {
+          return true;
+        }
+      }
+
+      return false;
+    }).toList();
+
+    // Sort by creation date, newest first
+    filteredNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return filteredNotes;
   }
 
   /// Deletes a note from the database.
