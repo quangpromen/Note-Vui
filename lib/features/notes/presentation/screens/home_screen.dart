@@ -1,10 +1,14 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/auth/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
+import '../widgets/ai_bottom_sheet.dart';
 import '../widgets/note_card.dart';
 import '../widgets/note_skeleton.dart';
 import '../widgets/soft_fab.dart';
@@ -18,6 +22,8 @@ import 'editor_screen.dart';
 /// - Floating search bar with filtering
 /// - Staggered/Masonry grid layout for notes
 /// - FAB for creating new notes
+/// - **Sync button** (gated for guests)
+/// - **AI button** (gated for guests)
 class HomeScreen extends StatefulWidget {
   final NoteService noteService;
 
@@ -30,6 +36,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -95,13 +102,168 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Navigates to login screen
+  void _navigateToLogin() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => LoginScreen(noteService: widget.noteService),
+      ),
+    );
+  }
+
+  /// Handles sync button press
+  Future<void> _handleSync() async {
+    // Check if user is logged in
+    final isLoggedIn = await AuthService().isLoggedIn();
+
+    if (!mounted) return;
+
+    if (!isLoggedIn) {
+      // Show guest dialog
+      _showGuestDialog(
+        title: 'Đồng bộ dữ liệu',
+        content: 'Bạn cần đăng nhập để đồng bộ ghi chú lên đám mây.',
+      );
+      return;
+    }
+
+    // User is logged in - perform sync
+    setState(() => _isSyncing = true);
+
+    try {
+      await widget.noteService.repository.syncPendingNotes();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(
+                  CupertinoIcons.checkmark_circle,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Đồng bộ thành công!',
+                  style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đồng bộ thất bại: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
+  }
+
+  /// Handles AI button press
+  void _handleAI() {
+    AIBottomSheet.show(context, onNavigateToLogin: _navigateToLogin);
+  }
+
+  /// Shows a dialog prompting guests to login
+  void _showGuestDialog({required String title, required String content}) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                CupertinoIcons.cloud_upload,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.nunito(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          content,
+          style: GoogleFonts.nunito(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHint,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _navigateToLogin();
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.primaryLight,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: Text(
+              'Đăng nhập ngay',
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // Header with greeting
+            // Header with greeting and action buttons
             _buildHeader(),
 
             // Search Bar
@@ -123,27 +285,102 @@ class _HomeScreenState extends State<HomeScreen> {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _getGreeting(),
-              style: GoogleFonts.nunito(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+            // Greeting text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _getGreeting(),
+                    style: GoogleFonts.nunito(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Hôm nay bạn muốn ghi chú gì nào?',
+                    style: GoogleFonts.nunito(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Hôm nay bạn muốn ghi chú gì nào?',
-              style: GoogleFonts.nunito(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
+
+            // Action buttons (Sync & AI)
+            Row(
+              children: [
+                // Sync button
+                _buildActionButton(
+                  icon: _isSyncing
+                      ? CupertinoIcons.arrow_2_circlepath
+                      : CupertinoIcons.cloud_upload,
+                  color: AppColors.aiSummarize,
+                  backgroundColor: AppColors.aiSummarizeBg,
+                  onTap: _isSyncing ? null : _handleSync,
+                  isLoading: _isSyncing,
+                  tooltip: 'Sao lưu',
+                ),
+                const SizedBox(width: 8),
+
+                // AI button
+                _buildActionButton(
+                  icon: CupertinoIcons.sparkles,
+                  color: Colors.purple,
+                  backgroundColor: Colors.purple.shade50,
+                  onTap: _handleAI,
+                  tooltip: 'AI Hỗ trợ',
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required Color backgroundColor,
+    required VoidCallback? onTap,
+    bool isLoading = false,
+    String? tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: isLoading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+              : Icon(icon, color: color, size: 20),
         ),
       ),
     );

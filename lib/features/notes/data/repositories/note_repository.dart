@@ -2,6 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/auth/auth_service.dart';
 import '../datasources/sync_client.dart';
 import '../models/note_model.dart';
 
@@ -105,7 +106,7 @@ class NoteRepository {
     await box.put(noteId, noteToSave);
 
     // Trigger background sync (fire-and-forget)
-    _syncPendingNotes();
+    syncPendingNotes();
   }
 
   /// Updates an existing note in the database.
@@ -133,7 +134,7 @@ class NoteRepository {
     await box.put(note.id, updatedNote);
 
     // Trigger background sync (fire-and-forget)
-    _syncPendingNotes();
+    syncPendingNotes();
   }
 
   /// Soft-deletes a note (marks for deletion but keeps in database).
@@ -167,7 +168,7 @@ class NoteRepository {
     await box.put(id, deletedNote);
 
     // Trigger background sync (fire-and-forget)
-    _syncPendingNotes();
+    syncPendingNotes();
 
     return true;
   }
@@ -283,14 +284,28 @@ class NoteRepository {
   /// This method is called automatically after add/update/delete operations.
   /// It's "fire-and-forget" - exceptions are caught and logged.
   ///
+  /// **CRITICAL for Guest Mode:**
+  /// - If user is NOT logged in (Guest), returns immediately without API call.
+  /// - This allows Guests to save notes to Hive without network errors.
+  ///
   /// Sync Flow:
-  /// 1. Check network connectivity - return if offline
-  /// 2. Gather all notes where `isSynced == false`
-  /// 3. Send to server via SyncClient
-  /// 4. Process server response:
+  /// 1. Check if user is logged in - return if Guest
+  /// 2. Check network connectivity - return if offline
+  /// 3. Gather all notes where `isSynced == false`
+  /// 4. Send to server via SyncClient
+  /// 5. Process server response:
   ///    - If note has `isDeleted == true`: physically delete from Hive
   ///    - Otherwise: update/insert into Hive with `isSynced = true`
-  Future<void> _syncPendingNotes() async {
+  ///
+  /// Made public for AuthService to call after login (Guest -> User merge).
+  Future<void> syncPendingNotes() async {
+    // **CRITICAL:** Check if user is logged in - Guests cannot sync
+    final isUser = await AuthService().isLoggedIn();
+    if (!isUser) {
+      print('[NoteRepository] Guest mode - sync skipped');
+      return; // Stop immediately. Do not call API.
+    }
+
     // Prevent concurrent sync operations
     if (_isSyncing) {
       print('[NoteRepository] Sync already in progress, skipping...');
@@ -366,7 +381,7 @@ class NoteRepository {
         return false;
       }
 
-      await _syncPendingNotes();
+      await syncPendingNotes();
       return true;
     } catch (e) {
       print('[NoteRepository] Manual sync failed: $e');

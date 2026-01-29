@@ -171,4 +171,14 @@ app.*.map.json
 *.temp
 *.bak
 
+# Secret data & Signing
+android/key.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
 
+# Pub related
+pubspec_overrides.yaml
+.packages
+
+# Logs
+flutter_*.log

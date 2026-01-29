@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../../core/auth/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
 import '../../domain/note_service.dart';
 import 'home_screen.dart';
 
@@ -9,7 +11,9 @@ import 'home_screen.dart';
 /// Features:
 /// - Fade-in and Scale-up animation for the logo
 /// - Minimalist clean background
-/// - Automatic navigation to HomeScreen
+/// - Auth-aware navigation:
+///   - If user is logged in -> HomeScreen
+///   - If user is guest/new -> LoginScreen
 class SplashScreen extends StatefulWidget {
   final NoteService noteService;
 
@@ -50,22 +54,34 @@ class _SplashScreenState extends State<SplashScreen>
     // Start animation
     _controller.forward();
 
-    // 4. Timer to navigate to HomeScreen after 2.5 seconds
-    Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                HomeScreen(noteService: widget.noteService),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-            transitionDuration: const Duration(milliseconds: 800),
-          ),
-        );
-      }
-    });
+    // 4. Check auth state and navigate appropriately
+    _checkAuthAndNavigate();
+  }
+
+  /// Checks if user is logged in and navigates to appropriate screen
+  Future<void> _checkAuthAndNavigate() async {
+    // Wait for splash animation
+    await Future.delayed(const Duration(milliseconds: 2500));
+
+    if (!mounted) return;
+
+    // Check if user is logged in
+    final isLoggedIn = await AuthService().isLoggedIn();
+
+    // Navigate based on auth state
+    final Widget targetScreen = isLoggedIn
+        ? HomeScreen(noteService: widget.noteService)
+        : LoginScreen(noteService: widget.noteService);
+
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override

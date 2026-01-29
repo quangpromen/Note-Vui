@@ -56,6 +56,10 @@ class NoteService extends ChangeNotifier {
   /// Total number of notes.
   int get noteCount => _notes.length;
 
+  /// Access to repository for sync operations.
+  /// Used by AuthService to trigger sync after login (Guest -> User merge).
+  NoteRepository get repository => _repository;
+
   // ============================================================================
   // INITIALIZATION
   // ============================================================================

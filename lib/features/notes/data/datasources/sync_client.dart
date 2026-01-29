@@ -1,11 +1,16 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/auth/token_storage.dart';
 import '../models/note_model.dart';
 
 /// API client for synchronizing notes with the .NET backend.
 ///
 /// This client handles all communication with the server's Batch Sync Endpoint.
 /// It uses Dio for HTTP requests and implements proper error handling.
+///
+/// Authentication:
+/// - Uses an interceptor to automatically attach the Bearer token
+/// - Token is read from secure storage before each request
 ///
 /// Base URL Configuration:
 /// - Android Emulator: `http://10.0.2.2:5000` (maps to localhost)
@@ -14,6 +19,9 @@ import '../models/note_model.dart';
 class SyncClient {
   /// Dio instance for HTTP requests
   final Dio _dio;
+
+  /// Token storage for reading auth token
+  final TokenStorage _tokenStorage = TokenStorage();
 
   /// Base URL for the API server
   static const String _baseUrl = 'http://10.0.2.2:5000';
@@ -36,6 +44,20 @@ class SyncClient {
               },
             ),
           ) {
+    // Add auth interceptor to attach Bearer token automatically
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // Read token from secure storage
+          final token = await _tokenStorage.getAccessToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          return handler.next(options);
+        },
+      ),
+    );
+
     // Add logging interceptor for debugging
     _dio.interceptors.add(
       LogInterceptor(

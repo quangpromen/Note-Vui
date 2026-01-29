@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/auth/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// A modal bottom sheet displaying AI-powered features.
@@ -11,8 +12,15 @@ import '../../../../core/theme/app_colors.dart';
 /// - Sửa lỗi chính tả (Fix spelling)
 /// - Dịch sang tiếng Anh (Translate to English)
 /// - Gợi ý ý tưởng (Suggest ideas)
+///
+/// **Feature Gating:**
+/// - If user is logged in: Proceeds with AI call
+/// - If Guest: Shows dialog prompting to login
 class AIBottomSheet extends StatelessWidget {
-  const AIBottomSheet({super.key});
+  /// Optional callback to navigate to login screen
+  final VoidCallback? onNavigateToLogin;
+
+  const AIBottomSheet({super.key, this.onNavigateToLogin});
 
   /// List of AI options with their icons, titles, and colors
   static final List<_AIOption> _options = [
@@ -47,12 +55,12 @@ class AIBottomSheet extends StatelessWidget {
   ];
 
   /// Shows the AI bottom sheet modal
-  static void show(BuildContext context) {
+  static void show(BuildContext context, {VoidCallback? onNavigateToLogin}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => const AIBottomSheet(),
+      builder: (context) => AIBottomSheet(onNavigateToLogin: onNavigateToLogin),
     );
   }
 
@@ -165,7 +173,19 @@ class AIBottomSheet extends StatelessWidget {
     );
   }
 
-  void _handleOptionTap(BuildContext context, _AIOption option) {
+  void _handleOptionTap(BuildContext context, _AIOption option) async {
+    // Check if user is logged in before allowing AI features
+    final isLoggedIn = await AuthService().isLoggedIn();
+
+    if (!context.mounted) return;
+
+    if (!isLoggedIn) {
+      // Show feature gating dialog for guests
+      _showGuestDialog(context);
+      return;
+    }
+
+    // User is logged in - proceed with AI feature
     Navigator.pop(context);
 
     // Show a demo snackbar
@@ -185,6 +205,87 @@ class AIBottomSheet extends StatelessWidget {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  /// Shows a dialog prompting guests to login for premium features
+  void _showGuestDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                CupertinoIcons.sparkles,
+                color: Colors.purple.shade600,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Tính năng cao cấp',
+              style: GoogleFonts.nunito(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Bạn cần đăng nhập để sử dụng AI và đồng bộ dữ liệu.',
+          style: GoogleFonts.nunito(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHint,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop(); // Close dialog
+              Navigator.of(context).pop(); // Close bottom sheet
+              // Navigate to login screen if callback provided
+              if (onNavigateToLogin != null) {
+                onNavigateToLogin!();
+              }
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.primaryLight,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: Text(
+              'Đăng nhập ngay',
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
