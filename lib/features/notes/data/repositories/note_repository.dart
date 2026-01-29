@@ -1,23 +1,50 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:uuid/uuid.dart';
 
+import '../datasources/sync_client.dart';
 import '../models/note_model.dart';
 
-/// Repository for persisting notes using Hive database.
+/// Repository for persisting notes using Hive database with offline-first sync.
+///
+/// This repository implements the Offline-First pattern:
+/// - All changes are immediately saved to Hive (Single Source of Truth)
+/// - Changes are marked with `isSynced = false`
+/// - Background sync is triggered after each change
+/// - Server responses update local data and mark as synced
+/// - Soft deletes are used until server confirms deletion
 ///
 /// Hive provides:
 /// - Fast read/write operations
 /// - No size limitations
 /// - Native Dart object storage
 /// - Automatic persistence
-///
-/// This repository follows the Repository pattern, abstracting
-/// the data layer from the rest of the application.
 class NoteRepository {
   /// The name of the Hive box for storing notes
   static const String _boxName = 'notes';
 
   /// Cached reference to the notes box
   Box<NoteModel>? _box;
+
+  /// UUID generator for local IDs
+  final Uuid _uuid = const Uuid();
+
+  /// API client for syncing with server
+  final SyncClient _syncClient;
+
+  /// Connectivity checker
+  final Connectivity _connectivity;
+
+  /// Flag to prevent concurrent sync operations
+  bool _isSyncing = false;
+
+  /// Creates a new NoteRepository with optional injected dependencies.
+  ///
+  /// [syncClient] - Custom SyncClient for testing
+  /// [connectivity] - Custom Connectivity for testing
+  NoteRepository({SyncClient? syncClient, Connectivity? connectivity})
+    : _syncClient = syncClient ?? SyncClient(),
+      _connectivity = connectivity ?? Connectivity();
 
   /// Gets the notes box, opening it if necessary.
   /// This is an internal method to ensure the box is always available.
@@ -38,12 +65,15 @@ class NoteRepository {
     Hive.registerAdapter(NoteModelAdapter());
   }
 
-  /// Loads all notes from the database.
+  /// Loads all non-deleted notes from the database.
   ///
   /// Returns notes sorted by creation date (newest first).
+  /// Filters out soft-deleted notes (isDeleted == true).
   Future<List<NoteModel>> loadNotes() async {
     final box = await _getBox();
-    final notes = box.values.toList();
+
+    // Filter out deleted notes - they shouldn't be visible to UI
+    final notes = box.values.where((note) => !note.isDeleted).toList();
 
     // Sort by creation date, newest first
     notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -53,16 +83,37 @@ class NoteRepository {
 
   /// Saves a new note to the database.
   ///
-  /// Uses the note's ID as the key for efficient retrieval.
+  /// - Generates a UUID if the note ID is empty
+  /// - Sets `isSynced = false` to mark for sync
+  /// - Sets `updatedAt` to current timestamp
+  /// - Saves to Hive immediately
+  /// - Triggers background sync (fire-and-forget)
   Future<void> addNote(NoteModel note) async {
     final box = await _getBox();
-    await box.put(note.id, note);
+
+    // Generate local ID if not provided
+    final noteId = note.id.isEmpty ? _uuid.v4() : note.id;
+    final now = DateTime.now();
+
+    // Create note with sync metadata
+    final noteToSave = note.copyWith(
+      id: noteId,
+      isSynced: false, // Mark as pending sync
+      updatedAt: now,
+    );
+
+    await box.put(noteId, noteToSave);
+
+    // Trigger background sync (fire-and-forget)
+    _syncPendingNotes();
   }
 
   /// Updates an existing note in the database.
   ///
-  /// Automatically sets the [updatedAt] field to the current timestamp
-  /// before saving to track modification history.
+  /// - Sets `isSynced = false` to mark for sync
+  /// - Sets `updatedAt` to current timestamp
+  /// - Saves to Hive immediately
+  /// - Triggers background sync (fire-and-forget)
   ///
   /// Throws [NoteNotFoundException] if the note doesn't exist.
   Future<void> updateNote(NoteModel note) async {
@@ -71,14 +122,59 @@ class NoteRepository {
       throw NoteNotFoundException(note.id);
     }
 
-    // Automatically set updatedAt to current time before saving
-    final updatedNote = note.copyWith(updatedAt: DateTime.now());
+    final now = DateTime.now();
+
+    // Update with sync metadata
+    final updatedNote = note.copyWith(
+      isSynced: false, // Mark as pending sync
+      updatedAt: now,
+    );
+
     await box.put(note.id, updatedNote);
+
+    // Trigger background sync (fire-and-forget)
+    _syncPendingNotes();
+  }
+
+  /// Soft-deletes a note (marks for deletion but keeps in database).
+  ///
+  /// Instead of physically deleting:
+  /// - Sets `isDeleted = true`
+  /// - Sets `isSynced = false` to sync the deletion
+  /// - Sets `updatedAt` to current timestamp
+  /// - Saves to Hive
+  /// - Triggers background sync
+  ///
+  /// The note will be physically deleted after successful server sync.
+  /// Returns true if the note was marked for deletion, false if not found.
+  Future<bool> deleteNote(String id) async {
+    final box = await _getBox();
+    final existingNote = box.get(id);
+
+    if (existingNote == null) {
+      return false;
+    }
+
+    final now = DateTime.now();
+
+    // Soft delete - mark as deleted, pending sync
+    final deletedNote = existingNote.copyWith(
+      isDeleted: true,
+      isSynced: false,
+      updatedAt: now,
+    );
+
+    await box.put(id, deletedNote);
+
+    // Trigger background sync (fire-and-forget)
+    _syncPendingNotes();
+
+    return true;
   }
 
   /// Searches notes by query string.
   ///
-  /// Returns notes where the [query] appears in:
+  /// Returns non-deleted notes where the [query] appears in:
   /// - Title
   /// - Content
   /// - Any tag in the tags list
@@ -87,9 +183,11 @@ class NoteRepository {
   /// Results are sorted by creation date (newest first).
   Future<List<NoteModel>> searchNotes(String query) async {
     final box = await _getBox();
-    final allNotes = box.values.toList();
 
-    // Empty query returns all notes
+    // Filter out deleted notes first
+    final allNotes = box.values.where((note) => !note.isDeleted).toList();
+
+    // Empty query returns all non-deleted notes
     if (query.trim().isEmpty) {
       allNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return allNotes;
@@ -125,36 +223,38 @@ class NoteRepository {
     return filteredNotes;
   }
 
-  /// Deletes a note from the database.
+  /// Gets a single non-deleted note by its ID.
   ///
-  /// Returns true if the note was deleted, false if it didn't exist.
-  Future<bool> deleteNote(String id) async {
-    final box = await _getBox();
-    if (!box.containsKey(id)) {
-      return false;
-    }
-    await box.delete(id);
-    return true;
-  }
-
-  /// Gets a single note by its ID.
-  ///
-  /// Returns null if the note doesn't exist.
+  /// Returns null if the note doesn't exist or is deleted.
   Future<NoteModel?> getNoteById(String id) async {
     final box = await _getBox();
-    return box.get(id);
+    final note = box.get(id);
+
+    // Don't return deleted notes
+    if (note != null && note.isDeleted) {
+      return null;
+    }
+
+    return note;
   }
 
-  /// Checks if a note with the given ID exists.
+  /// Checks if a non-deleted note with the given ID exists.
   Future<bool> exists(String id) async {
     final box = await _getBox();
-    return box.containsKey(id);
+    final note = box.get(id);
+    return note != null && !note.isDeleted;
   }
 
-  /// Returns the total number of notes stored.
+  /// Returns the total number of non-deleted notes stored.
   Future<int> count() async {
     final box = await _getBox();
-    return box.length;
+    return box.values.where((note) => !note.isDeleted).length;
+  }
+
+  /// Returns the number of notes pending sync.
+  Future<int> pendingCount() async {
+    final box = await _getBox();
+    return box.values.where((note) => !note.isSynced).length;
   }
 
   /// Clears all notes from the database.
@@ -173,6 +273,111 @@ class NoteRepository {
       await _box!.close();
       _box = null;
     }
+    _syncClient.dispose();
+  }
+
+  // ============ Sync Logic ============
+
+  /// Syncs all pending notes with the server.
+  ///
+  /// This method is called automatically after add/update/delete operations.
+  /// It's "fire-and-forget" - exceptions are caught and logged.
+  ///
+  /// Sync Flow:
+  /// 1. Check network connectivity - return if offline
+  /// 2. Gather all notes where `isSynced == false`
+  /// 3. Send to server via SyncClient
+  /// 4. Process server response:
+  ///    - If note has `isDeleted == true`: physically delete from Hive
+  ///    - Otherwise: update/insert into Hive with `isSynced = true`
+  Future<void> _syncPendingNotes() async {
+    // Prevent concurrent sync operations
+    if (_isSyncing) {
+      print('[NoteRepository] Sync already in progress, skipping...');
+      return;
+    }
+
+    _isSyncing = true;
+
+    try {
+      // Step 1: Check network connectivity
+      final connectivityResult = await _connectivity.checkConnectivity();
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        print('[NoteRepository] Offline - sync deferred');
+        return;
+      }
+
+      final box = await _getBox();
+
+      // Step 2: Gather all pending notes (isSynced == false)
+      final pendingNotes = box.values.where((note) => !note.isSynced).toList();
+
+      if (pendingNotes.isEmpty) {
+        print('[NoteRepository] No pending notes to sync');
+        return;
+      }
+
+      print('[NoteRepository] Syncing ${pendingNotes.length} pending notes...');
+
+      // Step 3: Send to server
+      final serverNotes = await _syncClient.syncNotes(pendingNotes);
+
+      // Step 4: Process server response
+      for (final serverNote in serverNotes) {
+        if (serverNote.isDeleted) {
+          // Physically delete notes confirmed as deleted by server
+          print('[NoteRepository] Deleting confirmed: ${serverNote.id}');
+          await box.delete(serverNote.id);
+        } else {
+          // Update local note with server data and mark as synced
+          print(
+            '[NoteRepository] Synced: ${serverNote.id} -> ${serverNote.serverId}',
+          );
+          final syncedNote = serverNote.copyWith(isSynced: true);
+          await box.put(serverNote.id, syncedNote);
+        }
+      }
+
+      print('[NoteRepository] Sync completed successfully');
+    } on SyncException catch (e) {
+      // Log sync errors but don't throw - data stays local for retry
+      print('[NoteRepository] Sync failed: $e');
+      print(
+        '[NoteRepository] Data preserved locally - will retry on next change',
+      );
+    } catch (e) {
+      // Catch any unexpected errors
+      print('[NoteRepository] Unexpected sync error: $e');
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  /// Manually triggers a sync operation.
+  ///
+  /// Useful for pull-to-refresh or manual sync button.
+  /// Returns true if sync was successful, false otherwise.
+  Future<bool> manualSync() async {
+    try {
+      // Check connectivity first
+      final connectivityResult = await _connectivity.checkConnectivity();
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        print('[NoteRepository] Cannot sync - device is offline');
+        return false;
+      }
+
+      await _syncPendingNotes();
+      return true;
+    } catch (e) {
+      print('[NoteRepository] Manual sync failed: $e');
+      return false;
+    }
+  }
+
+  /// Checks if the device is currently online.
+  Future<bool> isOnline() async {
+    final result = await _connectivity.checkConnectivity();
+    return !result.contains(ConnectivityResult.none);
   }
 }
 

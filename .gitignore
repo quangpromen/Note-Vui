@@ -44,6 +44,14 @@ GoogleService-Info.plist
 # Firebase
 firebase_options.dart
 
+# Keystores & Credentials
+*.keystore
+*.jks
+*.p12
+*.key
+*.pem
+credentials.json
+
 # ==============================================================================
 # ANDROID
 # ==============================================================================
@@ -53,8 +61,6 @@ firebase_options.dart
 /android/app/release
 /android/.gradle/
 /android/captures/
-/android/gradlew
-/android/gradlew.bat
 /android/local.properties
 **/android/**/GeneratedPluginRegistrant.*
 *.apk
@@ -165,5 +171,4 @@ app.*.map.json
 *.temp
 *.bak
 
-# Lock files (optional - some teams commit these)
-# pubspec.lock
+
