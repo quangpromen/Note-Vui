@@ -182,3 +182,35 @@ pubspec_overrides.yaml
 
 # Logs
 flutter_*.log
+
+# ==============================================================================
+# AGENT & SKILLS
+# ==============================================================================
+
+# Ignore agent internal data and git repo
+.agent/.git/
+.agent/bin/
+.agent/lib/
+.agent/scripts/
+.agent/data/
+.agent/docs/
+.agent/assets/
+.agent/node_modules/
+.agent/package-lock.json
+.agent/*.json
+.agent/*.md
+!.agent/skills/
+!.agent/workflows/
+
+# Keep only SKILL.md and essential files in skills
+.agent/skills/*
+!.agent/skills/**/SKILL.md
+!.agent/skills/**/.gitignore
+!.agent/skills/**/README.md
+
+# Ignore large skill artifacts
+.agent/skills/**/tests/
+.agent/skills/**/examples/
+.agent/skills/**/benchmarks/
+.agent/skills/**/docs/
+.agent/skills/**/scripts/
