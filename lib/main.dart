@@ -1,56 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
 
-import 'core/auth/auth_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/notes/data/repositories/note_repository.dart';
 import 'features/notes/domain/note_service.dart';
 import 'features/notes/presentation/screens/splash_screen.dart';
+import 'providers/auth_provider.dart';
+import 'services/auth_service.dart';
 
-/// Entry point for the "Ghi Chú Việt" (Viet Note) application.
+/// Entry point cho ứng dụng NoteVui.
 ///
-/// This app provides a beautiful, soft UI note-taking experience
-/// tailored for Vietnamese users with:
-/// - Pastel color palette
-/// - Nunito typography
-/// - AI-powered features
-/// - Staggered grid layout
-/// - Hive database for unlimited storage
-/// - Professional Splash Screen and Mint Green branding
-/// - **Guest Mode** with offline-first notes
-/// - **User Mode** with sync and AI features
+/// Khởi tạo theo thứ tự:
+/// 1. Hive database (local storage)
+/// 2. Vietnamese locale (date formatting)
+/// 3. NoteService (CRUD ghi chú)
+/// 4. AuthService (Dio + Interceptor + ngrok header)
+/// 5. Provider: AuthProvider cho toàn bộ widget tree
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize all required services in order
   final noteService = await _initializeApp();
 
-  runApp(GhiChuVietApp(noteService: noteService));
+  runApp(NoteVuiApp(noteService: noteService));
 }
 
-/// Initializes all app dependencies in the correct order.
-///
-/// Order matters:
-/// 1. Hive database (must be first for storage)
-/// 2. Date formatting (for Vietnamese locale)
-/// 3. NoteService (depends on Hive)
-/// 4. AuthService (for Guest/User mode, with sync callback)
+/// Khởi tạo tất cả dependencies.
 Future<NoteService> _initializeApp() async {
-  // Initialize Hive database and register adapters
+  // 0. Environment variables
+  await dotenv.load(fileName: ".env");
+
+  // 1. Hive database
   await NoteRepository.initialize();
 
-  // Initialize Vietnamese locale for date formatting
+  // 2. Vietnamese locale
   await initializeDateFormatting('vi_VN', null);
 
-  // Create and initialize the note service
+  // 3. NoteService
   final noteService = NoteService();
   await noteService.initialize();
 
-  // Initialize AuthService with sync callback
-  // This enables Guest -> User merge after login
+  // 4. AuthService (singleton) — khởi tạo Dio + Interceptor
   AuthService().initialize(
     onLoginSuccess: () async {
-      // When user logs in, trigger sync to push guest notes to server
+      // Sync guest notes lên server sau khi login
       await noteService.repository.syncPendingNotes();
     },
   );
@@ -58,24 +52,23 @@ Future<NoteService> _initializeApp() async {
   return noteService;
 }
 
-/// Root widget for the Ghi Chú Việt application.
-///
-/// Sets up the MaterialApp with:
-/// - Custom Soft UI theme
-/// - Vietnamese-friendly fonts
-/// - Green/Mint color scheme
-class GhiChuVietApp extends StatelessWidget {
+/// Root widget — cung cấp AuthProvider cho toàn bộ app.
+class NoteVuiApp extends StatelessWidget {
   final NoteService noteService;
 
-  const GhiChuVietApp({super.key, required this.noteService});
+  const NoteVuiApp({super.key, required this.noteService});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Ghi Chú Việt',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: SplashScreen(noteService: noteService),
+    return ChangeNotifierProvider(
+      // Tạo AuthProvider → kiểm tra token ngay khi app khởi động
+      create: (_) => AuthProvider()..checkAuthStatus(),
+      child: MaterialApp(
+        title: 'NoteVui',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        home: SplashScreen(noteService: noteService),
+      ),
     );
   }
 }

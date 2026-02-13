@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/auth/auth_service.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../services/auth_service.dart';
+import '../../../../providers/auth_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../data/models/note_model.dart';
@@ -104,11 +107,67 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Navigates to login screen
   void _navigateToLogin() {
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (context) => LoginScreen(noteService: widget.noteService),
       ),
+      (route) => false,
     );
+  }
+
+  /// Handles logout action
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Đăng xuất',
+          style: GoogleFonts.nunito(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?',
+          style: GoogleFonts.nunito(
+            fontSize: 15,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHint,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Đăng xuất',
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w700,
+                color: Colors.red,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && mounted) {
+      await context.read<AuthProvider>().logout();
+      _navigateToLogin();
+    }
   }
 
   /// Handles sync button press
@@ -338,6 +397,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: _handleAI,
                   tooltip: 'AI Hỗ trợ',
                 ),
+                const SizedBox(width: 8),
+
+                // Logout button (Only show when logged in)
+                if (context.watch<AuthProvider>().isLoggedIn) ...[
+                  const SizedBox(width: 8),
+                  _buildActionButton(
+                    icon: CupertinoIcons.power,
+                    color: Colors.red,
+                    backgroundColor: Colors.red.shade50,
+                    onTap: _handleLogout,
+                    tooltip: 'Đăng xuất',
+                  ),
+                ],
               ],
             ),
           ],

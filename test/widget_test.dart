@@ -31,7 +31,7 @@ void main() {
 
   testWidgets('Ghi Chú Việt app loads correctly', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(GhiChuVietApp(noteService: noteService));
+    await tester.pumpWidget(NoteVuiApp(noteService: noteService));
     await tester.pumpAndSettle();
 
     // Verify that the home screen loads with greeting
@@ -44,7 +44,7 @@ void main() {
   testWidgets('Empty state is shown when no notes', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(GhiChuVietApp(noteService: noteService));
+    await tester.pumpWidget(NoteVuiApp(noteService: noteService));
     await tester.pumpAndSettle();
 
     // Verify that empty state message is displayed

@@ -13,7 +13,7 @@ import '../models/note_model.dart';
 /// - Token is read from secure storage before each request
 ///
 /// Base URL Configuration:
-/// - Android Emulator: `http://10.0.2.2:5000` (maps to localhost)
+/// - Android Emulator: `http://192.168.1.9:5100` (maps to localhost)
 /// - iOS Simulator/Physical Device: `http://localhost:5000`
 /// - Production: Replace with actual server URL
 class SyncClient {
@@ -24,7 +24,7 @@ class SyncClient {
   final TokenStorage _tokenStorage = TokenStorage();
 
   /// Base URL for the API server
-  static const String _baseUrl = 'http://10.0.2.2:5000';
+  static const String _baseUrl = 'https://b776-14-191-194-55.ngrok-free.app';
 
   /// Sync endpoint path
   static const String _syncEndpoint = '/api/sync';
@@ -41,6 +41,7 @@ class SyncClient {
               headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
               },
             ),
           ) {

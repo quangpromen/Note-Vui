@@ -2,7 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/auth/auth_service.dart';
+import '../../../../services/auth_service.dart';
 import '../datasources/sync_client.dart';
 import '../models/note_model.dart';
 

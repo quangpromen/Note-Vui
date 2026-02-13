@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/auth/auth_service.dart';
+import '../../../../services/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// A modal bottom sheet displaying AI-powered features.

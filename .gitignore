@@ -2,10 +2,10 @@
 # FLUTTER / DART
 # ==============================================================================
 
-# Flutter/Dart/Pub related
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
 build/
@@ -17,200 +17,97 @@ build/
 *.gr.dart
 *.mocks.dart
 
-# Coverage & Testing
-/coverage/
-**/doc/api/
-*.lcov
-
 # ==============================================================================
-# ENVIRONMENT & SECRETS (QUAN TRỌNG!)
+# ENVIRONMENT & SECRETS (BẢO MẬT TỐI ĐA)
 # ==============================================================================
 
-# Environment files - KHÔNG COMMIT!
+# Environment files
 .env
 .env.*
 *.env
 .env.local
 .env.development
 .env.production
+!.env.example
 
 # API Keys & Secrets
 secrets.dart
 secrets.json
 **/secrets/
-google-services.json
-GoogleService-Info.plist
+**/config/secrets.*
+**/config/keys.*
 
 # Firebase
-firebase_options.dart
+google-services.json
+GoogleService-Info.plist
+lib/firebase_options.dart
+firebase_app_id_file.json
 
-# Keystores & Credentials
-*.keystore
-*.jks
-*.p12
-*.key
-*.pem
+# ==============================================================================
+# ANDROID (SIGNING & CONFIG)
+# ==============================================================================
+
+/android/.gradle/
+/android/local.properties
+/android/key.properties
+/android/app/key.properties
+**/*.keystore
+**/*.jks
+**/*.p12
+**/*.pem
+**/*.crt
+**/*.cer
+**/*.pfx
 credentials.json
 
 # ==============================================================================
-# ANDROID
-# ==============================================================================
-
-/android/app/debug
-/android/app/profile
-/android/app/release
-/android/.gradle/
-/android/captures/
-/android/local.properties
-**/android/**/GeneratedPluginRegistrant.*
-*.apk
-*.aab
-
-# ==============================================================================
-# iOS / macOS
+# iOS / macOS (PROVISIONING & BUILD)
 # ==============================================================================
 
 **/ios/Flutter/.last_build_id
 **/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
 **/ios/Pods/
 **/ios/.symlinks/
-**/ios/Flutter/App.framework
-**/ios/Flutter/Flutter.framework
-**/ios/Flutter/Flutter.podspec
 **/ios/Runner/GeneratedPluginRegistrant.*
 **/macos/Pods/
-**/macos/Flutter/Flutter-Debug.xcconfig
-**/macos/Flutter/Flutter-Release.xcconfig
-**/macos/Flutter/GeneratedPluginRegistrant.swift
-*.ipa
 
-# Xcode
+# Xcode user specific
 *.xcworkspace
 *.xcuserstate
+userdata/
 xcuserdata/
 
 # ==============================================================================
-# WEB
+# IDE & TOOLS
 # ==============================================================================
 
-/web/.dart_tool/
-/web/.packages
-
-# ==============================================================================
-# WINDOWS / LINUX
-# ==============================================================================
-
-/windows/flutter/ephemeral/
-/linux/flutter/ephemeral/
-
-# ==============================================================================
-# IDE & EDITORS
-# ==============================================================================
-
-# IntelliJ / Android Studio
-*.iml
-*.ipr
-*.iws
 .idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
 
-# VS Code (uncomment nếu không muốn share settings)
-# .vscode/
-
-# Vim
-*.swp
-*.swo
-*~
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# ==============================================================================
-# OS GENERATED
-# ==============================================================================
-
-# macOS
+# OS generated files
 .DS_Store
-.AppleDouble
-.LSOverride
+.DS_Store?
 ._*
-
-# Windows
-Thumbs.db
+.Spotlight-V100
+.Trashes
 ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
+Thumbs.db
 
-# Linux
-*~
-
-# ==============================================================================
-# MISCELLANEOUS
-# ==============================================================================
-
-*.class
+# Logs & Temporary
 *.log
-*.pyc
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Temporary files
 *.tmp
 *.temp
-*.bak
-
-# Secret data & Signing
-android/key.properties
-ios/Flutter/Generated.xcconfig
-ios/Flutter/ephemeral/
-
-# Pub related
-pubspec_overrides.yaml
-.packages
-
-# Logs
-flutter_*.log
+/coverage/
 
 # ==============================================================================
-# AGENT & SKILLS
+# AGENT & AI CONFIG
 # ==============================================================================
-
-# Ignore agent internal data and git repo
-.agent/.git/
-.agent/bin/
-.agent/lib/
-.agent/scripts/
-.agent/data/
-.agent/docs/
-.agent/assets/
-.agent/node_modules/
-.agent/package-lock.json
-.agent/*.json
-.agent/*.md
+.agent/
 !.agent/skills/
 !.agent/workflows/
-
-# Keep only SKILL.md and essential files in skills
-.agent/skills/*
-!.agent/skills/**/SKILL.md
-!.agent/skills/**/.gitignore
-!.agent/skills/**/README.md
-
-# Ignore large skill artifacts
-.agent/skills/**/tests/
-.agent/skills/**/examples/
-.agent/skills/**/benchmarks/
-.agent/skills/**/docs/
-.agent/skills/**/scripts/
+analyze_output.txt
