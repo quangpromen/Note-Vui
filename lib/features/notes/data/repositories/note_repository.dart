@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -21,11 +22,15 @@ import '../models/note_model.dart';
 /// - Native Dart object storage
 /// - Automatic persistence
 class NoteRepository {
+  /// The name of the Hive box for storing sync metadata
+  static const String _syncMetaBoxName = 'sync_meta';
+
   /// The name of the Hive box for storing notes
   static const String _boxName = 'notes';
 
   /// Cached reference to the notes box
   Box<NoteModel>? _box;
+  Box<dynamic>? _syncMetaBox;
 
   /// UUID generator for local IDs
   final Uuid _uuid = const Uuid();
@@ -57,6 +62,28 @@ class NoteRepository {
     return _box!;
   }
 
+  /// Gets the sync meta box, opening it if necessary.
+  Future<Box<dynamic>> _getSyncMetaBox() async {
+    if (_syncMetaBox != null && _syncMetaBox!.isOpen) {
+      return _syncMetaBox!;
+    }
+    _syncMetaBox = await Hive.openBox(_syncMetaBoxName);
+    return _syncMetaBox!;
+  }
+
+  /// Gets the last successful sync time.
+  Future<DateTime?> _getLastSyncTime() async {
+    final box = await _getSyncMetaBox();
+    final str = box.get('lastSyncTime') as String?;
+    return str != null ? DateTime.parse(str) : null;
+  }
+
+  /// Sets the last successful sync time.
+  Future<void> _setLastSyncTime(DateTime time) async {
+    final box = await _getSyncMetaBox();
+    await box.put('lastSyncTime', time.toIso8601String());
+  }
+
   /// Initializes the Hive database.
   ///
   /// Must be called once before any other operations.
@@ -64,6 +91,14 @@ class NoteRepository {
   static Future<void> initialize() async {
     await Hive.initFlutter();
     Hive.registerAdapter(NoteModelAdapter());
+  }
+
+  /// Returns a ValueListenable for the notes box.
+  ///
+  /// Used by NoteService to listen for background sync changes.
+  Future<ValueListenable<Box<NoteModel>>> getListenable() async {
+    final box = await _getBox();
+    return box.listenable();
   }
 
   /// Loads all non-deleted notes from the database.
@@ -274,6 +309,10 @@ class NoteRepository {
       await _box!.close();
       _box = null;
     }
+    if (_syncMetaBox != null && _syncMetaBox!.isOpen) {
+      await _syncMetaBox!.close();
+      _syncMetaBox = null;
+    }
     _syncClient.dispose();
   }
 
@@ -292,10 +331,11 @@ class NoteRepository {
   /// 1. Check if user is logged in - return if Guest
   /// 2. Check network connectivity - return if offline
   /// 3. Gather all notes where `isSynced == false`
-  /// 4. Send to server via SyncClient
-  /// 5. Process server response:
-  ///    - If note has `isDeleted == true`: physically delete from Hive
-  ///    - Otherwise: update/insert into Hive with `isSynced = true`
+  /// 4. Send to server via SyncClient (Sync Request)
+  /// 5. Process server response (Sync Response):
+  ///    - Mark sent notes as synced (if not changed locally again)
+  ///    - Apply upserts from server (delete/update)
+  ///    - Update lastSyncTime
   ///
   /// Made public for AuthService to call after login (Guest -> User merge).
   Future<void> syncPendingNotes() async {
@@ -325,33 +365,76 @@ class NoteRepository {
       final box = await _getBox();
 
       // Step 2: Gather all pending notes (isSynced == false)
-      final pendingNotes = box.values.where((note) => !note.isSynced).toList();
+      // Filter out notes with invalid GUIDs (legacy data) to prevent server 400 errors
+      final pendingNotes = box.values.where((note) {
+        if (note.isSynced) return false;
 
-      if (pendingNotes.isEmpty) {
-        print('[NoteRepository] No pending notes to sync');
-        return;
+        // Basic GUID validation: UUID v4 is 36 chars (32 hex + 4 dashes)
+        // Legacy IDs were shorter numeric strings.
+        if (note.id.length != 36) {
+          print(
+            '[NoteRepository] Skipping sync for note ${note.id}: Invalid GUID (Legacy Data)',
+          );
+          return false;
+        }
+        return true;
+      }).toList();
+
+      final lastSyncTime = await _getLastSyncTime();
+
+      print(
+        '[NoteRepository] Syncing: ${pendingNotes.length} changes, LastSync: $lastSyncTime',
+      );
+
+      // Step 3: Send to server (Sync Request)
+      // Even if pendingNotes is empty, we must sync to get updates from server if we have synced before.
+      final syncResponse = await _syncClient.syncNotes(
+        pendingNotes,
+        lastSyncTime: lastSyncTime,
+      );
+
+      // Step 4: Mark sent notes as synced (Optimistic Sync)
+      // verify strict consistency: only mark if local note hasn't changed since we picked it up
+      for (final sentNote in pendingNotes) {
+        if (!box.containsKey(sentNote.id)) continue;
+
+        final currentNote = box.get(sentNote.id);
+        if (currentNote == null) continue;
+
+        // If createdAt/updatedAt matches, assume no local changes happened during sync
+        // Using updatedAt is the safest check.
+        // We allow soft-deleted items to be marked synced too.
+        if (currentNote.updatedAt == sentNote.updatedAt) {
+          final syncedNote = currentNote.copyWith(isSynced: true);
+          await box.put(sentNote.id, syncedNote);
+        } else {
+          print(
+            '[NoteRepository] Note ${sentNote.id} changed during sync, keeping isSynced=false',
+          );
+        }
       }
 
-      print('[NoteRepository] Syncing ${pendingNotes.length} pending notes...');
-
-      // Step 3: Send to server
-      final serverNotes = await _syncClient.syncNotes(pendingNotes);
-
-      // Step 4: Process server response
-      for (final serverNote in serverNotes) {
+      // Step 5: Process upserts from server (Server Wins)
+      for (final serverNote in syncResponse.upserts) {
         if (serverNote.isDeleted) {
           // Physically delete notes confirmed as deleted by server
-          print('[NoteRepository] Deleting confirmed: ${serverNote.id}');
+          print(
+            '[NoteRepository] Deleting confirmed/upserted: ${serverNote.id}',
+          );
           await box.delete(serverNote.id);
         } else {
           // Update local note with server data and mark as synced
+          // Note: using serverNote.id (which maps to clientId/localId)
           print(
-            '[NoteRepository] Synced: ${serverNote.id} -> ${serverNote.serverId}',
+            '[NoteRepository] Upserting: ${serverNote.id} -> ServerID: ${serverNote.serverId}',
           );
-          final syncedNote = serverNote.copyWith(isSynced: true);
-          await box.put(serverNote.id, syncedNote);
+          // serverNote `fromServerResponse` already sets isSynced=true
+          await box.put(serverNote.id, serverNote);
         }
       }
+
+      // Step 6: Update lastSyncTime
+      await _setLastSyncTime(syncResponse.serverTime);
 
       print('[NoteRepository] Sync completed successfully');
     } on SyncException catch (e) {

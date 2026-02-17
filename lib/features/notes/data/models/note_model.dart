@@ -59,6 +59,8 @@ class NoteModel extends HiveObject {
 
   // ============ Sync Fields (v3.0 - Offline-First) ============
 
+  // ============ Sync Fields (v3.0 - Offline-First) ============
+
   /// The ID from the server database (nullable until synced)
   /// This is the primary key on the .NET backend.
   /// Null means the note has never been synced to the server.
@@ -76,6 +78,10 @@ class NoteModel extends HiveObject {
   /// After successful sync, notes with isDeleted=true are physically removed.
   @HiveField(10)
   final bool isDeleted;
+
+  /// Whether the note is pinned to the top.
+  @HiveField(11)
+  final bool isPinned;
 
   // ============ Getters ============
 
@@ -97,9 +103,11 @@ class NoteModel extends HiveObject {
     this.serverId,
     bool? isSynced,
     bool? isDeleted,
+    bool? isPinned,
   }) : tags = tags ?? const [],
        isSynced = isSynced ?? false,
-       isDeleted = isDeleted ?? false;
+       isDeleted = isDeleted ?? false,
+       isPinned = isPinned ?? false;
 
   /// Named constructor for creating notes with Color object
   /// Converts Color to int for storage
@@ -115,10 +123,12 @@ class NoteModel extends HiveObject {
     this.serverId,
     bool? isSynced,
     bool? isDeleted,
+    bool? isPinned,
   }) : backgroundColorValue = backgroundColor.toARGB32(),
        tags = tags ?? const [],
        isSynced = isSynced ?? false,
-       isDeleted = isDeleted ?? false;
+       isDeleted = isDeleted ?? false,
+       isPinned = isPinned ?? false;
 
   /// Creates a copy of this note with optional parameter overrides.
   /// Useful for updating notes immutably.
@@ -134,6 +144,7 @@ class NoteModel extends HiveObject {
     String? serverId,
     bool? isSynced,
     bool? isDeleted,
+    bool? isPinned,
   }) {
     return NoteModel(
       id: id ?? this.id,
@@ -147,6 +158,7 @@ class NoteModel extends HiveObject {
       serverId: serverId ?? this.serverId,
       isSynced: isSynced ?? this.isSynced,
       isDeleted: isDeleted ?? this.isDeleted,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 
@@ -165,32 +177,44 @@ class NoteModel extends HiveObject {
       'serverId': serverId,
       'isSynced': isSynced,
       'isDeleted': isDeleted,
+      'isPinned': isPinned,
     };
   }
 
   /// Converts the note to a Sync DTO format expected by the .NET backend.
   /// Maps local fields to the server's NoteSyncDto structure.
   ///
-  /// Server expects:
-  /// - Id: Server ID (null for new notes)
-  /// - ClientId: Local ID for mapping back
-  /// - Title, Content: Note data
-  /// - IsDeleted: Soft delete flag
-  /// - UpdatedAt: Last modification time for conflict resolution
+  /// Server expects strictly these fields (based on API Spec):
+  /// - clientId: Local UUID (Key)
+  /// - title
+  /// - shortPreview
+  /// - fullContent
+  /// - isPinned
+  /// - isDeleted
+  /// - createdAt
+  /// - updatedAt
   Map<String, dynamic> toSyncDto() {
-    return {
-      'id': serverId, // Server ID (null if never synced)
-      'clientId': id, // Local UUID for mapping
+    final data = <String, dynamic>{
+      'clientId': id,
       'title': title,
-      'content': content,
+      'shortPreview': content.length > 50
+          ? '${content.substring(0, 50)}...'
+          : content,
+      'fullContent': content,
+      'isPinned': isPinned,
       'isDeleted': isDeleted,
-      'updatedAt': (updatedAt ?? createdAt).toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
-      // Include additional metadata the server might need
-      'backgroundColor': backgroundColorValue,
-      'tags': tags,
-      'aiSummary': aiSummary,
+      'updatedAt': (updatedAt ?? createdAt).toIso8601String(),
     };
+
+    if (serverId != null) {
+      final parsedId = int.tryParse(serverId!);
+      if (parsedId != null) {
+        data['noteId'] = parsedId;
+      }
+    }
+
+    return data;
   }
 
   /// Creates a NoteModel from a JSON Map (local storage format).
@@ -213,6 +237,7 @@ class NoteModel extends HiveObject {
       serverId: json['serverId'] as String?,
       isSynced: json['isSynced'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
+      isPinned: json['isPinned'] as bool? ?? false,
     );
   }
 
@@ -226,9 +251,12 @@ class NoteModel extends HiveObject {
   factory NoteModel.fromServerResponse(Map<String, dynamic> json) {
     return NoteModel(
       id: json['clientId'] as String? ?? json['id'] as String,
-      serverId: json['id'] as String,
+      serverId:
+          json['noteId']?.toString() ??
+          json['id']?.toString(), // Use noteId from new spec, fallback to id
       title: json['title'] as String,
-      content: json['content'] as String,
+      content:
+          json['fullContent'] as String? ?? json['content'] as String? ?? '',
       createdAt: DateTime.parse(json['createdAt'] as String),
       backgroundColorValue: json['backgroundColor'] as int? ?? 0xFFFFFFFF,
       updatedAt: json['updatedAt'] != null
@@ -240,6 +268,7 @@ class NoteModel extends HiveObject {
       aiSummary: json['aiSummary'] as String?,
       isSynced: true, // Coming from server means it's synced
       isDeleted: json['isDeleted'] as bool? ?? false,
+      isPinned: json['isPinned'] as bool? ?? false,
     );
   }
 
@@ -257,7 +286,8 @@ class NoteModel extends HiveObject {
         other.aiSummary == aiSummary &&
         other.serverId == serverId &&
         other.isSynced == isSynced &&
-        other.isDeleted == isDeleted;
+        other.isDeleted == isDeleted &&
+        other.isPinned == isPinned;
   }
 
   @override
@@ -273,10 +303,11 @@ class NoteModel extends HiveObject {
     serverId,
     isSynced,
     isDeleted,
+    isPinned,
   );
 
   @override
   String toString() {
-    return 'NoteModel(id: $id, serverId: $serverId, title: $title, isSynced: $isSynced, isDeleted: $isDeleted)';
+    return 'NoteModel(id: $id, serverId: $serverId, title: $title, isPinned: $isPinned, isSynced: $isSynced, isDeleted: $isDeleted)';
   }
 }

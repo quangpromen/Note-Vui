@@ -1,6 +1,9 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../data/models/note_model.dart';
@@ -31,6 +34,9 @@ class NoteService extends ChangeNotifier {
 
   /// Error message if last operation failed
   String? _errorMessage;
+
+  /// Listenable for database changes
+  ValueListenable<Box<NoteModel>>? _boxListenable;
 
   /// Creates a NoteService with optional custom repository.
   /// Useful for testing with mock repositories.
@@ -71,13 +77,33 @@ class NoteService extends ChangeNotifier {
     _setLoading(true);
 
     try {
+      // Load initial notes
       _notes = await _repository.loadNotes();
       _errorMessage = null;
+
+      // Listen for database changes (reactive updates from sync/other sources)
+      _boxListenable = await _repository.getListenable();
+      _boxListenable?.addListener(_onDatabaseChanged);
     } catch (e) {
       _errorMessage = 'Không thể tải ghi chú: $e';
       _notes = [];
     } finally {
       _setLoading(false);
+    }
+  }
+
+  /// Callback when Hive database changes.
+  /// Reloads notes list to keep UI in sync with background operations.
+  void _onDatabaseChanged() async {
+    try {
+      final newNotes = await _repository.loadNotes();
+
+      // Basic check to see if we need to update UI
+      // Ideally, check for equality, but reloading is cheap enough here
+      _notes = newNotes;
+      notifyListeners();
+    } catch (e) {
+      print('Error refreshing notes from DB: $e');
     }
   }
 
@@ -106,11 +132,7 @@ class NoteService extends ChangeNotifier {
 
       await _repository.addNote(note);
 
-      // Add at the beginning (newest first)
-      _notes.insert(0, note);
       _errorMessage = null;
-      notifyListeners();
-
       return note;
     } catch (e) {
       _errorMessage = 'Không thể tạo ghi chú: $e';
@@ -132,24 +154,30 @@ class NoteService extends ChangeNotifier {
     _setLoading(true);
 
     try {
-      final index = _notes.indexWhere((note) => note.id == id);
-      if (index == -1) {
-        _errorMessage = 'Không tìm thấy ghi chú';
-        notifyListeners();
-        return false;
+      final noteToCheck = _notes.firstWhere(
+        (n) => n.id == id,
+        orElse: () => NoteModel(
+          id: '',
+          title: '',
+          content: '',
+          createdAt: DateTime.now(),
+          backgroundColorValue: 0,
+        ),
+      );
+      if (noteToCheck.id.isEmpty) {
+        if (!_notes.any((n) => n.id == id)) {
+          _errorMessage = 'Không tìm thấy ghi chú';
+          notifyListeners();
+          return false;
+        }
       }
 
-      final updatedNote = _notes[index].copyWith(
-        title: title,
-        content: content,
-      );
+      final currentNote = _notes.firstWhere((n) => n.id == id);
+      final updatedNote = currentNote.copyWith(title: title, content: content);
 
       await _repository.updateNote(updatedNote);
 
-      _notes[index] = updatedNote;
       _errorMessage = null;
-      notifyListeners();
-
       return true;
     } catch (e) {
       _errorMessage = 'Không thể cập nhật ghi chú: $e';
@@ -174,10 +202,7 @@ class NoteService extends ChangeNotifier {
         return false;
       }
 
-      _notes.removeWhere((note) => note.id == id);
       _errorMessage = null;
-      notifyListeners();
-
       return true;
     } catch (e) {
       _errorMessage = 'Không thể xóa ghi chú: $e';
@@ -226,11 +251,9 @@ class NoteService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Generates a unique ID based on timestamp and random suffix.
+  /// Generates a unique ID (UUID v4) compatible with server GUID.
   String _generateUniqueId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(9999).toString().padLeft(4, '0');
-    return '$timestamp$random';
+    return const Uuid().v4();
   }
 
   /// Returns a random pastel color from the predefined palette.
@@ -248,6 +271,7 @@ class NoteService extends ChangeNotifier {
   /// Disposes resources and closes database connection.
   @override
   void dispose() {
+    _boxListenable?.removeListener(_onDatabaseChanged);
     _repository.close();
     super.dispose();
   }

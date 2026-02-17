@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/auth/token_storage.dart';
+import '../../../../services/api_config.dart';
 import '../models/note_model.dart';
 
 /// API client for synchronizing notes with the .NET backend.
@@ -13,9 +14,7 @@ import '../models/note_model.dart';
 /// - Token is read from secure storage before each request
 ///
 /// Base URL Configuration:
-/// - Android Emulator: `http://192.168.1.9:5100` (maps to localhost)
-/// - iOS Simulator/Physical Device: `http://localhost:5000`
-/// - Production: Replace with actual server URL
+/// - Uses [ApiConfig.baseUrl] which is loaded from .env
 class SyncClient {
   /// Dio instance for HTTP requests
   final Dio _dio;
@@ -23,11 +22,10 @@ class SyncClient {
   /// Token storage for reading auth token
   final TokenStorage _tokenStorage = TokenStorage();
 
-  /// Base URL for the API server
-  static const String _baseUrl = 'https://b776-14-191-194-55.ngrok-free.app';
-
-  /// Sync endpoint path
-  static const String _syncEndpoint = '/api/sync';
+  /// Sync endpoint path (appended to ApiConfig.baseUrl)
+  /// User Request: POST /api/Sync
+  /// If baseUrl ends with /api, this should be /Sync
+  static const String _syncEndpoint = '/Sync';
 
   /// Creates a new SyncClient with configured Dio instance
   SyncClient({Dio? dio})
@@ -35,14 +33,10 @@ class SyncClient {
           dio ??
           Dio(
             BaseOptions(
-              baseUrl: _baseUrl,
-              connectTimeout: const Duration(seconds: 30),
-              receiveTimeout: const Duration(seconds: 30),
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'ngrok-skip-browser-warning': 'true',
-              },
+              baseUrl: ApiConfig.baseUrl,
+              connectTimeout: ApiConfig.connectTimeout,
+              receiveTimeout: ApiConfig.receiveTimeout,
+              headers: ApiConfig.defaultHeaders,
             ),
           ) {
     // Add auth interceptor to attach Bearer token automatically
@@ -69,47 +63,54 @@ class SyncClient {
     );
   }
 
-  /// Syncs a list of pending notes with the server.
+  /// Syncs local changes with server and retrieves updates.
   ///
-  /// This method sends all notes where `isSynced == false` to the server's
-  /// Batch Sync Endpoint. The server processes the changes and returns
-  /// the updated notes list.
+  /// [changes] - List of local notes that have been created/updated/deleted.
+  /// [lastSyncTime] - Timestamp of the last successful sync (null for first sync).
   ///
-  /// [changes] - List of NoteModel objects that need to be synced.
-  ///             These should have `isSynced == false`.
-  ///
-  /// Returns a list of NoteModel objects from the server response.
-  /// These notes should be used to update the local Hive database.
-  ///
-  /// Throws [SyncException] if the sync operation fails.
-  Future<List<NoteModel>> syncNotes(List<NoteModel> changes) async {
-    if (changes.isEmpty) {
-      return [];
-    }
-
+  /// Returns a [SyncResponse] containing updates from the server and new server time.
+  Future<SyncResponse> syncNotes(
+    List<NoteModel> changes, {
+    DateTime? lastSyncTime,
+  }) async {
     try {
-      // Convert notes to Sync DTO format expected by .NET backend
-      final payload = changes.map((note) => note.toSyncDto()).toList();
+      // Construct the sync payload
+      final payload = {
+        'lastSyncTime': lastSyncTime?.toIso8601String(),
+        'changes': changes.map((note) => note.toSyncDto()).toList(),
+      };
 
-      print('[SyncClient] Syncing ${changes.length} notes...');
-      print('[SyncClient] Payload: $payload');
+      print('[SyncClient] Syncing ${changes.length} changes...');
+      print('[SyncClient] Payload: $payload'); // Uncomment for debugging
 
-      final response = await _dio.post<List<dynamic>>(
-        _syncEndpoint,
-        data: payload,
-      );
+      final response = await _dio.post<dynamic>(_syncEndpoint, data: payload);
 
       if (response.statusCode == 200 && response.data != null) {
-        // Parse server response back to NoteModel objects
-        final serverNotes = response.data!
-            .map(
-              (json) =>
-                  NoteModel.fromServerResponse(json as Map<String, dynamic>),
-            )
-            .toList();
+        print('[SyncClient] Response data type: ${response.data.runtimeType}');
+        // print('[SyncClient] Response data: ${response.data}'); // Debugging
 
-        print('[SyncClient] Received ${serverNotes.length} notes from server');
-        return serverNotes;
+        final Map<String, dynamic> responseData;
+        if (response.data is Map) {
+          responseData = Map<String, dynamic>.from(response.data as Map);
+        } else if (response.data is String) {
+          print(
+            '[SyncClient] Response is String (likely error HTML or double-encoded JSON)',
+          );
+          throw SyncException('Server returned String instead of JSON object');
+        } else {
+          print(
+            '[SyncClient] Unexpected response type: ${response.data.runtimeType}',
+          );
+          throw SyncException(
+            'Unexpected response type: ${response.data.runtimeType}',
+          );
+        }
+
+        final syncResponse = SyncResponse.fromJson(responseData);
+        print(
+          '[SyncClient] Sync successful. Received ${syncResponse.upserts.length} updates. Server time: ${syncResponse.serverTime}',
+        );
+        return syncResponse;
       } else {
         throw SyncException(
           'Unexpected response status: ${response.statusCode}',
@@ -118,6 +119,10 @@ class SyncClient {
       }
     } on DioException catch (e) {
       print('[SyncClient] DioException: ${e.message}');
+      if (e.response != null) {
+        print('[SyncClient] Response Status: ${e.response?.statusCode}');
+        print('[SyncClient] Response Data: ${e.response?.data}');
+      }
       throw SyncException(
         _parseDioError(e),
         statusCode: e.response?.statusCode,
@@ -173,6 +178,43 @@ class SyncClient {
   /// Disposes of the Dio instance.
   void dispose() {
     _dio.close();
+  }
+}
+
+/// Response returned by the Sync API
+class SyncResponse {
+  /// List of notes strictly from server that need to be upserted locally
+  final List<NoteModel> upserts;
+
+  /// Server's current time, to be stored as lastSyncTime for next request
+  final DateTime serverTime;
+
+  /// Optional stats if needed
+  final Map<String, dynamic>? stats;
+
+  SyncResponse({required this.upserts, required this.serverTime, this.stats});
+
+  factory SyncResponse.fromJson(Map<String, dynamic> json) {
+    try {
+      return SyncResponse(
+        upserts:
+            (json['upserts'] as List?)?.map((e) {
+              if (e is! Map) {
+                print('[SyncResponse] Unexpected element in upserts: $e');
+                throw Exception('Upsert element is not a Map');
+              }
+              return NoteModel.fromServerResponse(Map<String, dynamic>.from(e));
+            }).toList() ??
+            [],
+        serverTime: DateTime.parse(json['serverTime'] as String),
+        stats: json['stats'] as Map<String, dynamic>?,
+      );
+    } catch (e, stack) {
+      print(
+        '[SyncResponse] Error parsing SyncResponse: $e\nStack: $stack\nJSON: $json',
+      );
+      rethrow;
+    }
   }
 }
 
