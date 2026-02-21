@@ -49,10 +49,9 @@ jobs:
             echo "Created empty .env"
           fi
 
-      - name: 🏗️ Run build_runner (Optional)
-        # Bỏ comment nếu bạn không commit các file .g.dart lên Git
-        # run: dart run build_runner build --delete-conflicting-outputs
-        run: echo "Skipped build_runner. Uncomment if needed."
+      - name: 🏗️ Run build_runner
+        # Chạy build_runner vì file .g.dart được khai báo trong .gitignore
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: ✨ Check formatting
         # Sẽ báo lỗi hỏng CI nếu code chưa được format bằng `dart format .`
