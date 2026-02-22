@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'features/notes/data/repositories/note_repository.dart';
 import 'features/notes/domain/note_service.dart';
 import 'features/notes/presentation/screens/splash_screen.dart';
+import 'providers/ai_provider.dart';
 import 'providers/auth_provider.dart';
 import 'services/auth_service.dart';
 
@@ -60,9 +61,15 @@ class NoteVuiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      // Tạo AuthProvider → kiểm tra token ngay khi app khởi động
-      create: (_) => AuthProvider()..checkAuthStatus(),
+    return MultiProvider(
+      providers: [
+        // Tạo AuthProvider → kiểm tra token ngay khi app khởi động
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider()..checkAuthStatus(),
+        ),
+        // Provider quản lý AI Summarize
+        ChangeNotifierProvider(create: (_) => AiProvider()),
+      ],
       child: MaterialApp(
         title: 'NoteVui',
         debugShowCheckedModeBanner: false,

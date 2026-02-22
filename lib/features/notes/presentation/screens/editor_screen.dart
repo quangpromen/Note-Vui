@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../providers/ai_provider.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/ai_bottom_sheet.dart';
+import 'package:provider/provider.dart';
 
 /// Note editor screen for creating and editing notes.
 ///
@@ -50,8 +52,144 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   /// Shows the AI support bottom sheet
-  void _showAIBottomSheet() {
-    AIBottomSheet.show(context);
+  void _showAIBottomSheet() async {
+    final action = await AIBottomSheet.show(context);
+    if (action != null && mounted) {
+      _handleAIAction(action);
+    }
+  }
+
+  Future<void> _handleAIAction(AIAction action) async {
+    final content = _contentController.text.trim();
+    if (content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                CupertinoIcons.exclamationmark_circle,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Bạn cần nhập nội dung để sử dụng tính năng AI!',
+                style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    if (action == AIAction.summarize) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final aiProvider = context.read<AiProvider>();
+      await aiProvider.summarizeContent(content);
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        if (aiProvider.state == AiProviderState.success &&
+            aiProvider.lastResponse != null) {
+          _showAIResultDialog(
+            'Tóm tắt nội dung',
+            aiProvider.lastResponse!.result ?? '',
+          );
+        } else if (aiProvider.state == AiProviderState.error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Lỗi: ${aiProvider.errorMessage}',
+                style: GoogleFonts.nunito(),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } else if (aiProvider.state == AiProviderState.showPremiumDialog) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Vui lòng nâng cấp VIP để dùng tính năng này!',
+                style: GoogleFonts.nunito(),
+              ),
+              backgroundColor: Colors.orange,
+              action: SnackBarAction(
+                label: 'Nâng cấp',
+                onPressed: () {},
+                textColor: Colors.white,
+              ),
+            ),
+          );
+        }
+      }
+    } else {
+      // Các tính năng khác chưa được thiết lập API
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Tính năng này đang được phát triển.',
+            style: GoogleFonts.nunito(),
+          ),
+          backgroundColor: Colors.blueAccent,
+        ),
+      );
+    }
+  }
+
+  void _showAIResultDialog(String title, String result) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(CupertinoIcons.sparkles, color: Colors.purple),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Text(result, style: GoogleFonts.nunito(fontSize: 16)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Đóng', style: GoogleFonts.nunito(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _contentController.text = result;
+              });
+            },
+            child: Text(
+              'Thay thế',
+              style: GoogleFonts.nunito(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Saves the note to storage
