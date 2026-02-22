@@ -244,8 +244,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Handles AI button press
-  void _handleAI() {
-    AIBottomSheet.show(context, onNavigateToLogin: _navigateToLogin);
+  void _handleAI() async {
+    final action = await AIBottomSheet.show(
+      context,
+      onNavigateToLogin: _navigateToLogin,
+    );
+    if (action != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Vui lòng mở một ghi chú cụ thể để sử dụng AI!',
+            style: GoogleFonts.nunito(),
+          ),
+          backgroundColor: Colors.blueAccent,
+        ),
+      );
+    }
   }
 
   /// Shows a dialog prompting guests to login

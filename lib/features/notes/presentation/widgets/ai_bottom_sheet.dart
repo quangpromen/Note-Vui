@@ -5,6 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 
+/// Defines the type of AI actions available
+enum AIAction { summarize, spellCheck, translateEn, suggestIdeas }
+
 /// A modal bottom sheet displaying AI-powered features.
 ///
 /// Features available (in Vietnamese):
@@ -25,6 +28,7 @@ class AIBottomSheet extends StatelessWidget {
   /// List of AI options with their icons, titles, and colors
   static final List<_AIOption> _options = [
     _AIOption(
+      action: AIAction.summarize,
       icon: CupertinoIcons.doc_text_search,
       title: 'Tóm tắt nội dung',
       subtitle: 'Rút gọn văn bản thành ý chính',
@@ -32,6 +36,7 @@ class AIBottomSheet extends StatelessWidget {
       iconColor: AppColors.aiSummarize,
     ),
     _AIOption(
+      action: AIAction.spellCheck,
       icon: CupertinoIcons.textformat_abc,
       title: 'Sửa lỗi chính tả',
       subtitle: 'Kiểm tra và sửa lỗi tự động',
@@ -39,6 +44,7 @@ class AIBottomSheet extends StatelessWidget {
       iconColor: AppColors.aiSpellCheck,
     ),
     _AIOption(
+      action: AIAction.translateEn,
       icon: CupertinoIcons.globe,
       title: 'Dịch sang tiếng Anh',
       subtitle: 'Chuyển đổi ngôn ngữ nhanh chóng',
@@ -46,6 +52,7 @@ class AIBottomSheet extends StatelessWidget {
       iconColor: AppColors.aiTranslate,
     ),
     _AIOption(
+      action: AIAction.suggestIdeas,
       icon: CupertinoIcons.lightbulb,
       title: 'Gợi ý ý tưởng',
       subtitle: 'Mở rộng và phát triển nội dung',
@@ -54,9 +61,12 @@ class AIBottomSheet extends StatelessWidget {
     ),
   ];
 
-  /// Shows the AI bottom sheet modal
-  static void show(BuildContext context, {VoidCallback? onNavigateToLogin}) {
-    showModalBottomSheet(
+  /// Shows the AI bottom sheet modal and returns the selected action
+  static Future<AIAction?> show(
+    BuildContext context, {
+    VoidCallback? onNavigateToLogin,
+  }) {
+    return showModalBottomSheet<AIAction>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -186,27 +196,7 @@ class AIBottomSheet extends StatelessWidget {
     }
 
     // User is logged in - proceed with AI feature
-    Navigator.pop(context);
-
-    // Show a demo snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(CupertinoIcons.sparkles, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              'Đang xử lý: ${option.title}...',
-              style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        backgroundColor: option.iconColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    Navigator.pop(context, option.action);
   }
 
   /// Shows a dialog prompting guests to login for premium features
@@ -293,6 +283,7 @@ class AIBottomSheet extends StatelessWidget {
 
 /// Data class for AI option configuration
 class _AIOption {
+  final AIAction action;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -300,6 +291,7 @@ class _AIOption {
   final Color iconColor;
 
   const _AIOption({
+    required this.action,
     required this.icon,
     required this.title,
     required this.subtitle,
