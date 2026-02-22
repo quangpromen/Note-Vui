@@ -108,8 +108,10 @@ class NoteRepository {
   Future<List<NoteModel>> loadNotes() async {
     final box = await _getBox();
 
-    // Filter out deleted notes - they shouldn't be visible to UI
-    final notes = box.values.where((note) => !note.isDeleted).toList();
+    // Filter out deleted/permanently deleted notes - they shouldn't be visible to UI
+    final notes = box.values
+        .where((note) => !note.isDeleted && !note.isPermanentlyDeleted)
+        .toList();
 
     // Sort by creation date, newest first
     notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -193,11 +195,13 @@ class NoteRepository {
 
     final now = DateTime.now();
 
-    // Soft delete - mark as deleted, pending sync
+    // Soft delete - mark as deleted, pending sync, add to trash
     final deletedNote = existingNote.copyWith(
       isDeleted: true,
       isSynced: false,
       updatedAt: now,
+      deletedAt: now,
+      isPermanentlyDeleted: false,
     );
 
     await box.put(id, deletedNote);
@@ -221,7 +225,9 @@ class NoteRepository {
     final box = await _getBox();
 
     // Filter out deleted notes first
-    final allNotes = box.values.where((note) => !note.isDeleted).toList();
+    final allNotes = box.values
+        .where((note) => !note.isDeleted && !note.isPermanentlyDeleted)
+        .toList();
 
     // Empty query returns all non-deleted notes
     if (query.trim().isEmpty) {
@@ -267,7 +273,7 @@ class NoteRepository {
     final note = box.get(id);
 
     // Don't return deleted notes
-    if (note != null && note.isDeleted) {
+    if (note != null && (note.isDeleted || note.isPermanentlyDeleted)) {
       return null;
     }
 
@@ -278,13 +284,15 @@ class NoteRepository {
   Future<bool> exists(String id) async {
     final box = await _getBox();
     final note = box.get(id);
-    return note != null && !note.isDeleted;
+    return note != null && !note.isDeleted && !note.isPermanentlyDeleted;
   }
 
   /// Returns the total number of non-deleted notes stored.
   Future<int> count() async {
     final box = await _getBox();
-    return box.values.where((note) => !note.isDeleted).length;
+    return box.values
+        .where((note) => !note.isDeleted && !note.isPermanentlyDeleted)
+        .length;
   }
 
   /// Returns the number of notes pending sync.
@@ -299,6 +307,147 @@ class NoteRepository {
   Future<void> clearAll() async {
     final box = await _getBox();
     await box.clear();
+  }
+
+  // ============ Trash Management Logic ============
+
+  /// Loads all notes currently in the trash (soft-deleted).
+  ///
+  /// Returns notes sorted by deletion date (newest first).
+  Future<List<NoteModel>> loadTrashNotes() async {
+    final box = await _getBox();
+    final trashNotes = box.values
+        .where((note) => note.isDeleted && !note.isPermanentlyDeleted)
+        .toList();
+
+    // Sort by deletedAt or updatedAt, newest first
+    trashNotes.sort((a, b) {
+      final aDate = a.deletedAt ?? a.updatedAt ?? a.createdAt;
+      final bDate = b.deletedAt ?? b.updatedAt ?? b.createdAt;
+      return bDate.compareTo(aDate);
+    });
+
+    return trashNotes;
+  }
+
+  /// Restores a note from the trash.
+  ///
+  /// Reverts soft-delete status.
+  Future<bool> restoreNote(String id) async {
+    final box = await _getBox();
+    final note = box.get(id);
+
+    if (note == null || !note.isDeleted || note.isPermanentlyDeleted) {
+      return false;
+    }
+
+    final restoredNote = note.copyWith(
+      isDeleted: false,
+      isSynced: false,
+      updatedAt: DateTime.now(),
+      // We set deletedAt to null to clear it but since copyWith uses null coalesce for defaults,
+      // we must set deletedAt in copyWith explicitly? Our copyWith returns 'deletedAt ?? this.deletedAt'.
+      // To really clear it, we recreate it:
+    );
+
+    // Workaround since copyWith won't set null values naturally
+    final fullyRestoredNote = NoteModel(
+      id: restoredNote.id,
+      title: restoredNote.title,
+      content: restoredNote.content,
+      createdAt: restoredNote.createdAt,
+      backgroundColorValue: restoredNote.backgroundColorValue,
+      updatedAt: restoredNote.updatedAt,
+      tags: restoredNote.tags,
+      aiSummary: restoredNote.aiSummary,
+      serverId: restoredNote.serverId,
+      isSynced: restoredNote.isSynced,
+      isDeleted: restoredNote.isDeleted,
+      isPinned: restoredNote.isPinned,
+      deletedAt: null,
+      isPermanentlyDeleted: restoredNote.isPermanentlyDeleted,
+    );
+
+    await box.put(id, fullyRestoredNote);
+    syncPendingNotes();
+    return true;
+  }
+
+  /// Permanently deletes a note from the trash.
+  ///
+  /// This will mark it permanently deleted locally and sync the deletion to the server.
+  /// The physical local deletion will happen when the server confirms the sync.
+  Future<bool> permanentlyDeleteNote(String id) async {
+    final box = await _getBox();
+    final note = box.get(id);
+
+    if (note == null) {
+      return false;
+    }
+
+    final permanentlyDeletedNote = note.copyWith(
+      isDeleted: true,
+      isPermanentlyDeleted: true,
+      isSynced: false,
+      updatedAt: DateTime.now(),
+    );
+
+    await box.put(id, permanentlyDeletedNote);
+    syncPendingNotes();
+    return true;
+  }
+
+  /// Empties all notes currently in the trash.
+  Future<void> emptyTrash() async {
+    final box = await _getBox();
+    final trashNotes = box.values
+        .where((note) => note.isDeleted && !note.isPermanentlyDeleted)
+        .toList();
+
+    for (final note in trashNotes) {
+      final permanentlyDeletedNote = note.copyWith(
+        isDeleted: true,
+        isPermanentlyDeleted: true,
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      await box.put(note.id, permanentlyDeletedNote);
+    }
+
+    if (trashNotes.isNotEmpty) {
+      syncPendingNotes();
+    }
+  }
+
+  /// Automatically cleans up trash notes older than 30 days.
+  ///
+  /// Should be called occasionally, e.g., on app start.
+  Future<void> cleanUpOldTrash() async {
+    final box = await _getBox();
+    final now = DateTime.now();
+
+    final trashNotes = box.values
+        .where((note) => note.isDeleted && !note.isPermanentlyDeleted)
+        .toList();
+
+    bool hasDeletions = false;
+    for (final note in trashNotes) {
+      final deleteTime = note.deletedAt ?? note.updatedAt ?? note.createdAt;
+      if (now.difference(deleteTime).inDays >= 30) {
+        final permanentlyDeletedNote = note.copyWith(
+          isDeleted: true,
+          isPermanentlyDeleted: true,
+          isSynced: false,
+          updatedAt: DateTime.now(),
+        );
+        await box.put(note.id, permanentlyDeletedNote);
+        hasDeletions = true;
+      }
+    }
+
+    if (hasDeletions) {
+      syncPendingNotes();
+    }
   }
 
   /// Closes the database connection.
@@ -416,15 +565,25 @@ class NoteRepository {
 
       // Step 5: Process upserts from server (Server Wins)
       for (final serverNote in syncResponse.upserts) {
+        final existingNote = box.get(serverNote.id);
+
         if (serverNote.isDeleted) {
-          // Physically delete notes confirmed as deleted by server
-          print(
-            '[NoteRepository] Deleting confirmed/upserted: ${serverNote.id}',
-          );
-          await box.delete(serverNote.id);
+          if (existingNote == null) {
+            // Server says soft-deleted but we don't have it locally. Just add to trash.
+            await box.put(serverNote.id, serverNote);
+          } else if (existingNote.isPermanentlyDeleted) {
+            // User permanently deleted it locally and we successfully sent the soft-delete to server.
+            // We can now physically remove it.
+            print(
+              '[NoteRepository] Physically deleting permanently deleted note confirmed by server: ${serverNote.id}',
+            );
+            await box.delete(serverNote.id);
+          } else {
+            // Soft-deleted note from server. Keep it in Trash.
+            await box.put(serverNote.id, serverNote);
+          }
         } else {
           // Update local note with server data and mark as synced
-          // Note: using serverNote.id (which maps to clientId/localId)
           print(
             '[NoteRepository] Upserting: ${serverNote.id} -> ServerID: ${serverNote.serverId}',
           );
