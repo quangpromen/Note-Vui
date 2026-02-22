@@ -17,6 +17,7 @@ import '../widgets/note_skeleton.dart';
 import '../widgets/soft_fab.dart';
 import '../widgets/soft_search_bar.dart';
 import 'editor_screen.dart';
+import 'trash_screen.dart';
 
 /// Home screen displaying the notes grid with search functionality.
 ///
@@ -101,6 +102,16 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (context) =>
             EditorScreen(note: note, noteService: widget.noteService),
+      ),
+    );
+  }
+
+  /// Navigates to the trash screen
+  void _navigateToTrash() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TrashScreen(noteService: widget.noteService),
       ),
     );
   }
@@ -373,9 +384,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Action buttons (Sync & AI)
+            // Action buttons (Trash, Sync & AI)
             Row(
               children: [
+                // Trash button
+                _buildActionButton(
+                  icon: CupertinoIcons.trash,
+                  color: Colors.orange,
+                  backgroundColor: Colors.orange.shade50,
+                  onTap: _navigateToTrash,
+                  tooltip: 'Thùng rác',
+                ),
+                const SizedBox(width: 8),
+
                 // Sync button
                 _buildActionButton(
                   icon: _isSyncing

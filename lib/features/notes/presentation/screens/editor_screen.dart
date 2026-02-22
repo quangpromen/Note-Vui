@@ -176,7 +176,7 @@ class _EditorScreenState extends State<EditorScreen> {
           ],
         ),
         content: Text(
-          'Bạn có chắc muốn xóa ghi chú này không? Hành động này không thể hoàn tác.',
+          'Ghi chú này sẽ được chuyển vào thùng rác. Bạn có thể khôi phục nó trong vòng 30 ngày.',
           style: GoogleFonts.nunito(
             fontSize: 15,
             color: AppColors.textSecondary,
@@ -226,7 +226,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   const Icon(CupertinoIcons.trash, color: Colors.white),
                   const SizedBox(width: 12),
                   Text(
-                    'Đã xóa ghi chú!',
+                    'Đã chuyển vào thùng rác!',
                     style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
                   ),
                 ],

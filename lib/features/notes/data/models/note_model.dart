@@ -83,6 +83,16 @@ class NoteModel extends HiveObject {
   @HiveField(11)
   final bool isPinned;
 
+  /// The timestamp when the note was moved to the trash.
+  /// Used to calculate the 30-day auto-delete period.
+  @HiveField(12)
+  final DateTime? deletedAt;
+
+  /// Whether the note is permanently deleted from the trash.
+  /// If true, this note should never be shown again and should be excluded from sync restoring it.
+  @HiveField(13)
+  final bool isPermanentlyDeleted;
+
   // ============ Getters ============
 
   /// Getter to convert stored int back to Color
@@ -104,10 +114,13 @@ class NoteModel extends HiveObject {
     bool? isSynced,
     bool? isDeleted,
     bool? isPinned,
+    this.deletedAt,
+    bool? isPermanentlyDeleted,
   }) : tags = tags ?? const [],
        isSynced = isSynced ?? false,
        isDeleted = isDeleted ?? false,
-       isPinned = isPinned ?? false;
+       isPinned = isPinned ?? false,
+       isPermanentlyDeleted = isPermanentlyDeleted ?? false;
 
   /// Named constructor for creating notes with Color object
   /// Converts Color to int for storage
@@ -124,11 +137,14 @@ class NoteModel extends HiveObject {
     bool? isSynced,
     bool? isDeleted,
     bool? isPinned,
+    this.deletedAt,
+    bool? isPermanentlyDeleted,
   }) : backgroundColorValue = backgroundColor.toARGB32(),
        tags = tags ?? const [],
        isSynced = isSynced ?? false,
        isDeleted = isDeleted ?? false,
-       isPinned = isPinned ?? false;
+       isPinned = isPinned ?? false,
+       isPermanentlyDeleted = isPermanentlyDeleted ?? false;
 
   /// Creates a copy of this note with optional parameter overrides.
   /// Useful for updating notes immutably.
@@ -145,6 +161,8 @@ class NoteModel extends HiveObject {
     bool? isSynced,
     bool? isDeleted,
     bool? isPinned,
+    DateTime? deletedAt,
+    bool? isPermanentlyDeleted,
   }) {
     return NoteModel(
       id: id ?? this.id,
@@ -159,6 +177,8 @@ class NoteModel extends HiveObject {
       isSynced: isSynced ?? this.isSynced,
       isDeleted: isDeleted ?? this.isDeleted,
       isPinned: isPinned ?? this.isPinned,
+      deletedAt: deletedAt ?? this.deletedAt,
+      isPermanentlyDeleted: isPermanentlyDeleted ?? this.isPermanentlyDeleted,
     );
   }
 
@@ -178,6 +198,8 @@ class NoteModel extends HiveObject {
       'isSynced': isSynced,
       'isDeleted': isDeleted,
       'isPinned': isPinned,
+      'deletedAt': deletedAt?.toIso8601String(),
+      'isPermanentlyDeleted': isPermanentlyDeleted,
     };
   }
 
@@ -238,6 +260,10 @@ class NoteModel extends HiveObject {
       isSynced: json['isSynced'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
       isPinned: json['isPinned'] as bool? ?? false,
+      deletedAt: json['deletedAt'] != null
+          ? DateTime.parse(json['deletedAt'] as String)
+          : null,
+      isPermanentlyDeleted: json['isPermanentlyDeleted'] as bool? ?? false,
     );
   }
 
@@ -269,6 +295,10 @@ class NoteModel extends HiveObject {
       isSynced: true, // Coming from server means it's synced
       isDeleted: json['isDeleted'] as bool? ?? false,
       isPinned: json['isPinned'] as bool? ?? false,
+      deletedAt: json['isDeleted'] == true && json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : null,
+      isPermanentlyDeleted: false,
     );
   }
 
@@ -287,7 +317,9 @@ class NoteModel extends HiveObject {
         other.serverId == serverId &&
         other.isSynced == isSynced &&
         other.isDeleted == isDeleted &&
-        other.isPinned == isPinned;
+        other.isPinned == isPinned &&
+        other.deletedAt == deletedAt &&
+        other.isPermanentlyDeleted == isPermanentlyDeleted;
   }
 
   @override
@@ -304,10 +336,12 @@ class NoteModel extends HiveObject {
     isSynced,
     isDeleted,
     isPinned,
+    deletedAt,
+    isPermanentlyDeleted,
   );
 
   @override
   String toString() {
-    return 'NoteModel(id: $id, serverId: $serverId, title: $title, isPinned: $isPinned, isSynced: $isSynced, isDeleted: $isDeleted)';
+    return 'NoteModel(id: $id, serverId: $serverId, title: $title, isPinned: $isPinned, isSynced: $isSynced, isDeleted: $isDeleted, isPermanentlyDeleted: $isPermanentlyDeleted)';
   }
 }

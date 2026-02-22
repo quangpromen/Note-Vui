@@ -29,6 +29,9 @@ class NoteService extends ChangeNotifier {
   /// Internal list of notes, kept in sync with database
   List<NoteModel> _notes = [];
 
+  /// Internal list of soft-deleted notes (Trash)
+  List<NoteModel> _trashNotes = [];
+
   /// Loading state for async operations
   bool _isLoading = false;
 
@@ -49,6 +52,9 @@ class NoteService extends ChangeNotifier {
 
   /// Gets the current list of notes (read-only copy).
   List<NoteModel> get notes => List.unmodifiable(_notes);
+
+  /// Gets the current list of trashed notes (read-only copy).
+  List<NoteModel> get trashNotes => List.unmodifiable(_trashNotes);
 
   /// Whether the service is currently performing an async operation.
   bool get isLoading => _isLoading;
@@ -77,8 +83,12 @@ class NoteService extends ChangeNotifier {
     _setLoading(true);
 
     try {
-      // Load initial notes
+      // Clean up old trash notes (30 days) on startup
+      await _repository.cleanUpOldTrash();
+
+      // Load initial notes and trash notes
       _notes = await _repository.loadNotes();
+      _trashNotes = await _repository.loadTrashNotes();
       _errorMessage = null;
 
       // Listen for database changes (reactive updates from sync/other sources)
@@ -97,10 +107,11 @@ class NoteService extends ChangeNotifier {
   void _onDatabaseChanged() async {
     try {
       final newNotes = await _repository.loadNotes();
+      final newTrashNotes = await _repository.loadTrashNotes();
 
-      // Basic check to see if we need to update UI
-      // Ideally, check for equality, but reloading is cheap enough here
+      // Update both lists
       _notes = newNotes;
+      _trashNotes = newTrashNotes;
       notifyListeners();
     } catch (e) {
       print('Error refreshing notes from DB: $e');
@@ -206,6 +217,68 @@ class NoteService extends ChangeNotifier {
       return true;
     } catch (e) {
       _errorMessage = 'Không thể xóa ghi chú: $e';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // ============================================================================
+  // TRASH MANAGEMENT
+  // ============================================================================
+
+  /// Restores a note from the trash.
+  Future<bool> restoreNote(String id) async {
+    _setLoading(true);
+    try {
+      final restored = await _repository.restoreNote(id);
+      if (!restored) {
+        _errorMessage = 'Không thể khôi phục ghi chú';
+        notifyListeners();
+        return false;
+      }
+      _errorMessage = null;
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi khôi phục: $e';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Permanently deletes a note.
+  Future<bool> permanentlyDeleteNote(String id) async {
+    _setLoading(true);
+    try {
+      final deleted = await _repository.permanentlyDeleteNote(id);
+      if (!deleted) {
+        _errorMessage = 'Không thể xóa vĩnh viễn ghi chú';
+        notifyListeners();
+        return false;
+      }
+      _errorMessage = null;
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi xóa vĩnh viễn: $e';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Empties all notes in the trash.
+  Future<bool> emptyTrash() async {
+    _setLoading(true);
+    try {
+      await _repository.emptyTrash();
+      _errorMessage = null;
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi dọn thùng rác: $e';
       notifyListeners();
       return false;
     } finally {
