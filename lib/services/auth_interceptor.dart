@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
+import '../core/auth/session_manager.dart';
 import '../core/auth/token_storage.dart';
 import 'api_config.dart';
 
@@ -199,9 +200,9 @@ class AuthInterceptor extends Interceptor {
     return _dio.fetch(opts);
   }
 
-  /// Xóa tất cả token → buộc đăng nhập lại.
+  /// Xóa tất cả token + thông báo UI → buộc đăng nhập lại.
   Future<void> _forceLogout() async {
-    await _tokenStorage.clearAll();
+    await SessionManager().handleSessionExpired();
   }
 
   /// Reject tất cả request trong hàng đợi.
