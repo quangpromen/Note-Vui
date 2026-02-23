@@ -7,6 +7,7 @@ import '../../../../providers/ai_provider.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/ai_bottom_sheet.dart';
+import '../widgets/ai_grammar_bottom_sheet.dart';
 import '../widgets/ai_ideas_bottom_sheet.dart';
 import '../widgets/ai_translation_bottom_sheet.dart';
 import 'package:provider/provider.dart';
@@ -164,16 +165,16 @@ class _EditorScreenState extends State<EditorScreen> {
           });
         },
       );
-    } else {
-      // Các tính năng khác chưa được thiết lập API
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Tính năng này đang được phát triển.',
-            style: GoogleFonts.nunito(),
-          ),
-          backgroundColor: Colors.blueAccent,
-        ),
+    } else if (action == AIAction.spellCheck) {
+      AiGrammarBottomSheet.show(
+        context,
+        originalContent: content,
+        noteId: widget.note?.id,
+        onReplace: (correctedText) {
+          setState(() {
+            _contentController.text = correctedText;
+          });
+        },
       );
     }
   }

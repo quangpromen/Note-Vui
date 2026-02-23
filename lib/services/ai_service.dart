@@ -50,6 +50,11 @@ class AiService {
     return _callAiEndpoint('/Ai/ideas', request);
   }
 
+  /// Gọi API POST /Ai/grammar — Sửa lỗi ngữ pháp & chính tả bằng AI
+  Future<AiResponse> fixGrammar(AiRequest request) async {
+    return _callAiEndpoint('/Ai/grammar', request);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // PRIVATE: Logic gọi API chung cho tất cả endpoint AI
   // ═══════════════════════════════════════════════════════════════════════

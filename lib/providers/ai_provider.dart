@@ -162,4 +162,39 @@ class AiProvider extends ChangeNotifier {
       _setState(AiProviderState.error);
     }
   }
+
+  /// Gọi AI sửa lỗi ngữ pháp & chính tả
+  Future<void> fixGrammarContent(String content, {String? noteId}) async {
+    // Validate cơ bản
+    if (content.trim().isEmpty) {
+      _setErrorMessage('Nội dung cần sửa ngữ pháp không được để trống.');
+      return;
+    }
+
+    _setState(AiProviderState.loading);
+    _errorMessage = null;
+
+    try {
+      final request = AiRequest(
+        content: content,
+        targetLanguage: null, // Không cần thiết cho API grammar
+        noteId: noteId,
+      );
+
+      final response = await _aiService.fixGrammar(request);
+
+      _lastResponse = response;
+      _setState(AiProviderState.success);
+    } on AiPremiumRequiredException catch (e) {
+      _errorMessage = e.message;
+      // Kích hoạt trạng thái mở Popup/Dialog nâng cấp Premium
+      _setState(AiProviderState.showPremiumDialog);
+    } on AiException catch (e) {
+      _errorMessage = e.message;
+      _setState(AiProviderState.error);
+    } catch (e) {
+      _errorMessage = 'Đã có lỗi xảy ra: $e';
+      _setState(AiProviderState.error);
+    }
+  }
 }
