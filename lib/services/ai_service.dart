@@ -119,4 +119,86 @@ class AiService {
       throw AiException('Đã xảy ra lỗi không xác định: $e');
     }
   }
+
+  /// Gọi API POST /Ai/translate
+  Future<AiResponse> translate(AiRequest request) async {
+    try {
+      // 1. Lấy token từ local storage
+      final token = await _tokenStorage.getAccessToken();
+
+      // 2. Đính kèm vào request header
+      final options = Options(
+        headers: {
+          if (token != null && token.isNotEmpty)
+            'Authorization': 'Bearer $token',
+        },
+      );
+
+      // 3. Thực hiện HTTP POST call
+      final response = await _dio.post(
+        '/Ai/translate',
+        data: request.toJson(),
+        options: options,
+      );
+
+      // 4. Parse JSON body (status code 200 OK)
+      final aiResponse = AiResponse.fromJson(response.data);
+
+      if (!aiResponse.isSuccess) {
+        throw AiException(
+          aiResponse.errorMessage ??
+              'API trả về kết quả lỗi nhưng không có thông báo cụ thể.',
+          200,
+        );
+      }
+
+      return aiResponse;
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final statusCode = e.response!.statusCode;
+        final data = e.response!.data;
+
+        String errorMessage = 'Lỗi không xác định.';
+        if (data is Map<String, dynamic> && data['errorMessage'] != null) {
+          errorMessage = data['errorMessage'];
+        } else if (data is String && data.isNotEmpty) {
+          errorMessage = data;
+        }
+
+        // Xử lý rõ ràng các mã lỗi (HTTP Status Codes)
+        switch (statusCode) {
+          case 400:
+            throw AiException(
+              'Dữ liệu không hợp lệ (400 Bad Request): $errorMessage',
+              400,
+            );
+          case 401:
+            throw AiException(
+              'Phiên đăng nhập hết hạn hoặc Token không hợp lệ. (401 Unauthorized)',
+              401,
+            );
+          case 403:
+            throw AiPremiumRequiredException(
+              errorMessage != 'Lỗi không xác định.'
+                  ? errorMessage
+                  : 'AI features are exclusively available for VIP members. Please upgrade to Premium.',
+            );
+          case 500:
+          case 503:
+            throw AiException('$errorMessage', statusCode);
+          default:
+            throw AiException(
+              'Lỗi HTTP $statusCode: $errorMessage',
+              statusCode,
+            );
+        }
+      } else {
+        // Lỗi không có response (ví dụ timeout, mất mạng)
+        throw AiException('Lỗi kết nối mạng: ${e.message}');
+      }
+    } catch (e) {
+      if (e is AiException) rethrow; // Ném lại các lỗi tự định nghĩa
+      throw AiException('Đã xảy ra lỗi không xác định: $e');
+    }
+  }
 }

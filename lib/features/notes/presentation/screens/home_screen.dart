@@ -11,7 +11,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
-import '../widgets/ai_bottom_sheet.dart';
 import '../widgets/note_card.dart';
 import '../widgets/note_skeleton.dart';
 import '../widgets/soft_fab.dart';
@@ -27,7 +26,6 @@ import 'trash_screen.dart';
 /// - Staggered/Masonry grid layout for notes
 /// - FAB for creating new notes
 /// - **Sync button** (gated for guests)
-/// - **AI button** (gated for guests)
 class HomeScreen extends StatefulWidget {
   final NoteService noteService;
 
@@ -243,25 +241,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Handles AI button press
-  void _handleAI() async {
-    final action = await AIBottomSheet.show(
-      context,
-      onNavigateToLogin: _navigateToLogin,
-    );
-    if (action != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Vui lòng mở một ghi chú cụ thể để sử dụng AI!',
-            style: GoogleFonts.nunito(),
-          ),
-          backgroundColor: Colors.blueAccent,
-        ),
-      );
-    }
-  }
-
   /// Shows a dialog prompting guests to login
   void _showGuestDialog({required String title, required String content}) {
     showDialog(
@@ -424,19 +403,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(width: 8),
 
-                // AI button
-                _buildActionButton(
-                  icon: CupertinoIcons.sparkles,
-                  color: Colors.purple,
-                  backgroundColor: Colors.purple.shade50,
-                  onTap: _handleAI,
-                  tooltip: 'AI Hỗ trợ',
-                ),
-                const SizedBox(width: 8),
-
                 // Logout button (Only show when logged in)
                 if (context.watch<AuthProvider>().isLoggedIn) ...[
-                  const SizedBox(width: 8),
                   _buildActionButton(
                     icon: CupertinoIcons.power,
                     color: Colors.red,

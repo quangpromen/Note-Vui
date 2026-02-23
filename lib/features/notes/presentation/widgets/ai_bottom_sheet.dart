@@ -6,7 +6,7 @@ import '../../../../services/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// Defines the type of AI actions available
-enum AIAction { summarize, spellCheck, translateEn, suggestIdeas }
+enum AIAction { summarize, spellCheck, translate, suggestIdeas }
 
 /// A modal bottom sheet displaying AI-powered features.
 ///
@@ -44,10 +44,10 @@ class AIBottomSheet extends StatelessWidget {
       iconColor: AppColors.aiSpellCheck,
     ),
     _AIOption(
-      action: AIAction.translateEn,
+      action: AIAction.translate,
       icon: CupertinoIcons.globe,
-      title: 'Dịch sang tiếng Anh',
-      subtitle: 'Chuyển đổi ngôn ngữ nhanh chóng',
+      title: 'Dịch văn bản',
+      subtitle: 'Dịch sang nhiều ngôn ngữ khác nhau',
       backgroundColor: AppColors.aiTranslateBg,
       iconColor: AppColors.aiTranslate,
     ),
