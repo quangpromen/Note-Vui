@@ -83,4 +83,48 @@ class AiProvider extends ChangeNotifier {
     _state = AiProviderState.error;
     notifyListeners();
   }
+
+  /// Gọi AI dịch
+  Future<void> translateContent(
+    String content,
+    String targetLanguage, {
+    String? noteId,
+  }) async {
+    // Validate cơ bản
+    if (content.trim().isEmpty) {
+      _setErrorMessage('Nội dung cần dịch không được để trống.');
+      return;
+    }
+
+    if (targetLanguage.trim().isEmpty) {
+      _setErrorMessage('Vui lòng chọn ngôn ngữ đích.');
+      return;
+    }
+
+    _setState(AiProviderState.loading);
+    _errorMessage = null;
+
+    try {
+      final request = AiRequest(
+        content: content,
+        targetLanguage: targetLanguage,
+        noteId: noteId,
+      );
+
+      final response = await _aiService.translate(request);
+
+      _lastResponse = response;
+      _setState(AiProviderState.success);
+    } on AiPremiumRequiredException catch (e) {
+      _errorMessage = e.message;
+      // Kích hoạt trạng thái mở Popup/Dialog nâng cấp Premium
+      _setState(AiProviderState.showPremiumDialog);
+    } on AiException catch (e) {
+      _errorMessage = e.message;
+      _setState(AiProviderState.error);
+    } catch (e) {
+      _errorMessage = 'Đã có lỗi xảy ra: $e';
+      _setState(AiProviderState.error);
+    }
+  }
 }

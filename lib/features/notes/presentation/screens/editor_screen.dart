@@ -7,6 +7,7 @@ import '../../../../providers/ai_provider.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/ai_bottom_sheet.dart';
+import '../widgets/ai_translation_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 
 /// Note editor screen for creating and editing notes.
@@ -134,6 +135,17 @@ class _EditorScreenState extends State<EditorScreen> {
           );
         }
       }
+    } else if (action == AIAction.translate) {
+      AiTranslationBottomSheet.show(
+        context,
+        originalContent: content,
+        noteId: widget.note?.id,
+        onReplace: (translatedText) {
+          setState(() {
+            _contentController.text = translatedText;
+          });
+        },
+      );
     } else {
       // Các tính năng khác chưa được thiết lập API
       ScaffoldMessenger.of(context).showSnackBar(
