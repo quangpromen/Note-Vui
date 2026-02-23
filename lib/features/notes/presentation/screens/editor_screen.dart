@@ -7,6 +7,7 @@ import '../../../../providers/ai_provider.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/ai_bottom_sheet.dart';
+import '../widgets/ai_ideas_bottom_sheet.dart';
 import '../widgets/ai_translation_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 
@@ -143,6 +144,23 @@ class _EditorScreenState extends State<EditorScreen> {
         onReplace: (translatedText) {
           setState(() {
             _contentController.text = translatedText;
+          });
+        },
+      );
+    } else if (action == AIAction.suggestIdeas) {
+      AiIdeasBottomSheet.show(
+        context,
+        originalContent: content,
+        noteId: widget.note?.id,
+        onAppend: (ideaText) {
+          setState(() {
+            final currentContent = _contentController.text;
+            if (currentContent.isNotEmpty) {
+              _contentController.text =
+                  '$currentContent\n\n---\n💡 Ý tưởng AI:\n$ideaText';
+            } else {
+              _contentController.text = ideaText;
+            }
           });
         },
       );
