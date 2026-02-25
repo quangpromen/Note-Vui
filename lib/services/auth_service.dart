@@ -204,6 +204,55 @@ class AuthService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // GOOGLE LOGIN
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Đăng nhập bằng Google idToken.
+  ///
+  /// **Endpoint**: `POST /auth/google-login`
+  ///
+  /// Luồng:
+  /// 1. Gửi `idToken` lên Backend
+  /// 2. Nếu 200 → parse [AuthResponse], lưu token, gọi callback
+  /// 3. Nếu 401 → throw [GoogleNotRegisteredException]
+  /// 4. Nếu lỗi khác → throw [AuthException]
+  Future<AuthResponse> googleLogin(String idToken) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiConfig.googleLoginEndpoint,
+        data: {'idToken': idToken},
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final auth = AuthResponse.fromJson(response.data!);
+
+        // Lưu token an toàn
+        await _tokenStorage.saveAccessToken(auth.accessToken);
+        await _tokenStorage.saveRefreshToken(auth.refreshToken);
+
+        // Callback (sync notes sau login)
+        await _safeCallback();
+
+        return auth;
+      }
+
+      throw AuthException('Phản hồi không hợp lệ từ máy chủ.');
+    } on DioException catch (e) {
+      // Xử lý riêng 401 — tài khoản Google chưa đăng ký
+      if (e.response?.statusCode == 401) {
+        final data = e.response?.data;
+        final msg = data is Map ? data['message'] as String? : null;
+        throw GoogleNotRegisteredException(
+          msg ?? 'Tài khoản Google này chưa được đăng ký trong hệ thống.',
+        );
+      }
+      throw AuthException(_parseError(e));
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // LOGOUT & STATUS
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -279,4 +328,15 @@ class AuthException implements Exception {
 
   @override
   String toString() => 'AuthException: $message';
+}
+
+/// Exception riêng cho trường hợp tài khoản Google chưa đăng ký.
+///
+/// Kế thừa [AuthException] để Provider có thể phân biệt
+/// và hiển thị Dialog/SnackBar hướng dẫn người dùng đi đăng ký.
+class GoogleNotRegisteredException extends AuthException {
+  GoogleNotRegisteredException(super.message);
+
+  @override
+  String toString() => 'GoogleNotRegisteredException: $message';
 }

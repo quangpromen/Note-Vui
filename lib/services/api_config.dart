@@ -18,6 +18,7 @@ class ApiConfig {
   static const String loginEndpoint = '/auth/login';
   static const String registerEndpoint = '/auth/register';
   static const String refreshTokenEndpoint = '/auth/refresh-token';
+  static const String googleLoginEndpoint = '/auth/google-login';
 
   /// ─── TIMEOUTS ────────────────────────────────────────────────────────
   static const Duration connectTimeout = Duration(seconds: 30);

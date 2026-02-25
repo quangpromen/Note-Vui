@@ -222,6 +222,166 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+  /// Handles the Google Login button press.
+  Future<void> _handleGoogleLogin() async {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
+    // Haptic feedback
+    HapticFeedback.lightImpact();
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final result = await authProvider.googleLogin();
+
+      if (!mounted) return;
+
+      switch (result) {
+        case GoogleLoginResult.success:
+          // Success haptic
+          HapticFeedback.mediumImpact();
+
+          // Navigate to HomeScreen with smooth transition
+          Navigator.of(context).pushAndRemoveUntil(
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) =>
+                  HomeScreen(noteService: widget.noteService),
+              transitionsBuilder: (_, animation, __, child) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 0.05),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                    child: child,
+                  ),
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 600),
+            ),
+            (route) => false,
+          );
+          break;
+
+        case GoogleLoginResult.notRegistered:
+          // Hiển thị dialog hướng dẫn đăng ký
+          HapticFeedback.heavyImpact();
+          _showNotRegisteredDialog();
+          break;
+
+        case GoogleLoginResult.cancelled:
+          // User huỷ → không làm gì
+          break;
+
+        case GoogleLoginResult.error:
+          // Lỗi chung
+          HapticFeedback.heavyImpact();
+          setState(() {
+            _errorMessage =
+                authProvider.errorMessage ?? 'Đăng nhập Google thất bại.';
+          });
+          break;
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  /// Hiển thị dialog thông báo tài khoản Google chưa đăng ký.
+  void _showNotRegisteredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFF1A2E1A),
+        title: Row(
+          children: [
+            Icon(
+              Icons.info_outline_rounded,
+              color: Colors.amber.shade400,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Chưa có tài khoản',
+                style: GoogleFonts.outfit(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Tài khoản Google này chưa được đăng ký trong hệ thống.\n\n'
+          'Vui lòng đăng ký tài khoản trước, sau đó bạn có thể liên kết với Google.',
+          style: GoogleFonts.outfit(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.8),
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Đóng',
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateToRegister();
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFF60D394).withValues(alpha: 0.2),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Đăng ký ngay',
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF60D394),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Placeholder for "Quên mật khẩu" feature.
   void _handleForgotPassword() {
     HapticFeedback.selectionClick();
@@ -532,6 +692,16 @@ class _LoginScreenState extends State<LoginScreen>
 
                 // Login Button
                 _buildLoginButton(),
+
+                const SizedBox(height: 16),
+
+                // ── OR Divider trong card ──
+                _buildInCardDivider(),
+
+                const SizedBox(height: 16),
+
+                // Google Login Button
+                _buildGoogleLoginButton(),
 
                 const SizedBox(height: 20),
 
@@ -885,6 +1055,92 @@ class _LoginScreenState extends State<LoginScreen>
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: Colors.white.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // GOOGLE LOGIN BUTTON
+  // ===========================================================================
+
+  /// Dòng kẻ "hoặc" bên trong glass card.
+  Widget _buildInCardDivider() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 1,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            'hoặc',
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Nút "Đăng nhập bằng Google" với icon và glass style.
+  Widget _buildGoogleLoginButton() {
+    return GestureDetector(
+      onTap: _isLoading ? null : _handleGoogleLogin,
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.25),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Google "G" logo
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                child: Text(
+                  'G',
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF4285F4),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Đăng nhập bằng Google',
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.9),
               ),
             ),
           ],
