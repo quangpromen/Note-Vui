@@ -2,6 +2,16 @@ import 'package:flutter/foundation.dart';
 
 import '../models/auth_response.dart';
 import '../services/auth_service.dart';
+import '../services/google_sign_in_service.dart';
+
+/// Kết quả trả về từ [AuthProvider.googleLogin].
+///
+/// UI sẽ dùng enum này để quyết định hành vi:
+/// - [success]       → Navigate sang HomeScreen
+/// - [notRegistered] → Hiển thị dialog/snackbar hướng dẫn đăng ký
+/// - [cancelled]     → Không làm gì (user tự huỷ)
+/// - [error]         → Hiển thị thông báo lỗi chung
+enum GoogleLoginResult { success, notRegistered, cancelled, error }
 
 /// Quản lý trạng thái xác thực cho toàn bộ ứng dụng.
 ///
@@ -26,6 +36,7 @@ import '../services/auth_service.dart';
 /// - [currentUser]  → thông tin user sau login/register
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  final GoogleSignInService _googleSignInService = GoogleSignInService();
 
   // ─── State ──────────────────────────────────────────────────────────
   bool _isLoading = false;
@@ -105,6 +116,98 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // GOOGLE LOGIN
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Đăng nhập bằng Google.
+  ///
+  /// Luồng đầy đủ:
+  /// 1. GoogleSignIn SDK → lấy `idToken`
+  /// 2. Gửi `idToken` lên Backend `/auth/google-login`
+  /// 3. Xử lý kết quả:
+  ///    - 200 OK → lưu token, set state → [GoogleLoginResult.success]
+  ///    - 401    → tài khoản chưa đăng ký → [GoogleLoginResult.notRegistered]
+  ///    - User huỷ popup → [GoogleLoginResult.cancelled]
+  ///    - Lỗi khác → [GoogleLoginResult.error]
+  ///
+  /// ```dart
+  /// // Trong UI:
+  /// final result = await authProvider.googleLogin();
+  /// switch (result) {
+  ///   case GoogleLoginResult.success:
+  ///     Navigator.pushReplacement(...HomeScreen...);
+  ///     break;
+  ///   case GoogleLoginResult.notRegistered:
+  ///     showDialog(...'Vui lòng đăng ký trước'...);
+  ///     break;
+  ///   case GoogleLoginResult.cancelled:
+  ///     break; // Không làm gì
+  ///   case GoogleLoginResult.error:
+  ///     showSnackBar(authProvider.errorMessage);
+  ///     break;
+  /// }
+  /// ```
+  Future<GoogleLoginResult> googleLogin() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // ── Bước 1: Lấy idToken từ Google ──────────────────────────────
+      final idToken = await _googleSignInService.getIdToken();
+
+      // User huỷ popup Google
+      if (idToken == null) {
+        _isLoading = false;
+        notifyListeners();
+        return GoogleLoginResult.cancelled;
+      }
+
+      // ── Bước 2: Gửi idToken lên Backend ───────────────────────────
+      final response = await _authService.googleLogin(idToken);
+
+      // ── Bước 3: Thành công → lưu state ─────────────────────────────
+      _currentUser = response;
+      _isLoggedIn = true;
+      _isLoading = false;
+      notifyListeners();
+      return GoogleLoginResult.success;
+    } on GoogleNotRegisteredException catch (e) {
+      // 401 — Tài khoản Google chưa đăng ký
+      _errorMessage = e.message;
+      _isLoading = false;
+
+      // Sign out Google để lần sau user có thể chọn lại tài khoản
+      await _googleSignInService.signOut();
+
+      notifyListeners();
+      return GoogleLoginResult.notRegistered;
+    } on AuthException catch (e) {
+      // Lỗi API khác (mạng, server...)
+      _errorMessage = e.message;
+      _isLoading = false;
+      notifyListeners();
+      return GoogleLoginResult.error;
+    } catch (e, stackTrace) {
+      // Lỗi không xác định (Google SDK, ...)
+      // ignore: avoid_print
+      print('╔══ GOOGLE LOGIN ERROR ══════════════════════════');
+      // ignore: avoid_print
+      print('║ Error type: ${e.runtimeType}');
+      // ignore: avoid_print
+      print('║ Error: $e');
+      // ignore: avoid_print
+      print('║ StackTrace: $stackTrace');
+      // ignore: avoid_print
+      print('╚════════════════════════════════════════════════');
+      _errorMessage = 'Đã xảy ra lỗi khi đăng nhập bằng Google: $e';
+      _isLoading = false;
+      notifyListeners();
+      return GoogleLoginResult.error;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // REGISTER
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -140,9 +243,10 @@ class AuthProvider extends ChangeNotifier {
   // LOGOUT
   // ═══════════════════════════════════════════════════════════════════════
 
-  /// Đăng xuất — xóa token, reset state.
+  /// Đăng xuất — xóa token, reset state, sign out Google.
   Future<void> logout() async {
     await _authService.logout();
+    await _googleSignInService.signOut();
     _isLoggedIn = false;
     _currentUser = null;
     _errorMessage = null;
