@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../notes/domain/note_service.dart';
 import '../../../notes/presentation/screens/home_screen.dart';
+import 'forgot_password_email_screen.dart';
 import 'register_screen.dart';
 
 /// Premium Login Screen with Glassmorphism design.
@@ -382,18 +383,13 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  /// Placeholder for "Quên mật khẩu" feature.
+  /// Navigate to forgot-password flow.
   void _handleForgotPassword() {
     HapticFeedback.selectionClick();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Tính năng đặt lại mật khẩu sẽ sớm được cập nhật!',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w500),
-        ),
-        backgroundColor: const Color(0xFF008080),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            ForgotPasswordEmailScreen(noteService: widget.noteService),
       ),
     );
   }
@@ -740,7 +736,7 @@ class _LoginScreenState extends State<LoginScreen>
       textInputAction: textInputAction,
       onFieldSubmitted: onFieldSubmitted,
       validator: validator,
-      style: GoogleFonts.outfit(
+      style: GoogleFonts.nunito(
         fontSize: 16,
         fontWeight: FontWeight.w500,
         color: Colors.white,
@@ -748,7 +744,7 @@ class _LoginScreenState extends State<LoginScreen>
       cursorColor: Colors.white,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.outfit(
+        hintStyle: GoogleFonts.nunito(
           fontSize: 16,
           fontWeight: FontWeight.w400,
           color: Colors.white.withValues(alpha: 0.5),
@@ -788,7 +784,7 @@ class _LoginScreenState extends State<LoginScreen>
           horizontal: 20,
           vertical: 18,
         ),
-        errorStyle: GoogleFonts.outfit(
+        errorStyle: GoogleFonts.nunito(
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: const Color(0xFFFFD93D),
@@ -857,7 +853,7 @@ class _LoginScreenState extends State<LoginScreen>
         onTap: _handleForgotPassword,
         child: Text(
           'Quên mật khẩu?',
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.nunito(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: Colors.white.withValues(alpha: 0.7),
@@ -949,7 +945,7 @@ class _LoginScreenState extends State<LoginScreen>
                 )
               : Text(
                   'Đăng nhập',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.nunito(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
