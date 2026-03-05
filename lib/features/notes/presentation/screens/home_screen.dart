@@ -9,7 +9,7 @@ import '../../../../services/auth_service.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
-import '../../../auth/presentation/screens/profile_screen.dart';
+import '../../../auth/presentation/screens/user_profile_screen.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/note_card.dart';
@@ -109,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _navigateToProfile() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ProfileScreen(noteService: widget.noteService),
+        builder: (_) => UserProfileScreen(noteService: widget.noteService),
       ),
     );
   }

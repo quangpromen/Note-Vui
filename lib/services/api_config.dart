@@ -26,6 +26,7 @@ class ApiConfig {
   static const String forgotPasswordResetEndpoint =
       '/auth/forgot-password/reset';
   static const String changePasswordEndpoint = '/auth/change-password';
+  static const String userProfileEndpoint = '/user/profile';
 
   /// ─── TIMEOUTS ────────────────────────────────────────────────────────
   static const Duration connectTimeout = Duration(seconds: 30);
