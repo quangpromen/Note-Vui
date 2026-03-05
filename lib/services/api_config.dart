@@ -25,6 +25,7 @@ class ApiConfig {
       '/auth/forgot-password/verify-otp';
   static const String forgotPasswordResetEndpoint =
       '/auth/forgot-password/reset';
+  static const String changePasswordEndpoint = '/auth/change-password';
 
   /// ─── TIMEOUTS ────────────────────────────────────────────────────────
   static const Duration connectTimeout = Duration(seconds: 30);
