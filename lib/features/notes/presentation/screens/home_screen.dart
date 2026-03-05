@@ -9,6 +9,7 @@ import '../../../../services/auth_service.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../auth/presentation/screens/profile_screen.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
 import '../widgets/note_card.dart';
@@ -100,6 +101,15 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (context) =>
             EditorScreen(note: note, noteService: widget.noteService),
+      ),
+    );
+  }
+
+  /// Navigates to profile screen
+  void _navigateToProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(noteService: widget.noteService),
       ),
     );
   }
@@ -403,8 +413,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(width: 8),
 
-                // Logout button (Only show when logged in)
+                // Profile & Logout buttons (Only show when logged in)
                 if (context.watch<AuthProvider>().isLoggedIn) ...[
+                  _buildActionButton(
+                    icon: CupertinoIcons.person_circle,
+                    color: AppColors.primary,
+                    backgroundColor: AppColors.primaryLight,
+                    onTap: _navigateToProfile,
+                    tooltip: 'Thông tin cá nhân',
+                  ),
+                  const SizedBox(width: 8),
                   _buildActionButton(
                     icon: CupertinoIcons.power,
                     color: Colors.red,

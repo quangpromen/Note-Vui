@@ -25,6 +25,7 @@ import 'register_screen.dart';
 /// - Smooth page transitions
 /// - "Quên mật khẩu" and "Đăng ký mới" links
 /// - Guest Mode for offline usage
+/// - **Non-scrollable layout** — tất cả nội dung fit trong màn hình
 ///
 /// Font: Google Fonts 'Outfit' for a modern premium feel
 class LoginScreen extends StatefulWidget {
@@ -401,6 +402,8 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // resizeToAvoidBottomInset: false giúp layout không bị đẩy lên khi mở keyboard
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Layer 1: Gradient Background
@@ -409,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen>
           // Layer 2: Animated floating orbs
           _buildFloatingOrbs(),
 
-          // Layer 3: Content (scrollable)
+          // Layer 3: Content — không scroll, dùng Column fit màn hình
           SafeArea(
             child: AnimatedBuilder(
               animation: _formAnimController,
@@ -422,37 +425,36 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 );
               },
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
+              child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    const SizedBox(height: 60),
+                    const SizedBox(height: 32),
 
                     // Logo
                     _buildLogo(),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     // Welcome text
                     _buildWelcomeText(),
 
-                    const SizedBox(height: 40),
-
-                    // Glassmorphism Login Card
-                    _buildGlassCard(),
-
                     const SizedBox(height: 24),
+
+                    // Glassmorphism Login Card — chiếm phần lớn không gian
+                    Expanded(child: _buildGlassCard()),
+
+                    const SizedBox(height: 16),
 
                     // Divider
                     _buildDivider(),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     // Guest Mode Button
                     _buildGuestModeButton(),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -546,10 +548,10 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildLogo() {
     return Center(
       child: Container(
-        width: 100,
-        height: 100,
+        width: 80,
+        height: 80,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.15),
@@ -559,18 +561,18 @@ class _LoginScreenState extends State<LoginScreen>
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(24),
           child: Image.asset(
             'assets/images/logo.jpg',
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => Container(
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(24),
               ),
               child: const Icon(
                 CupertinoIcons.doc_text_fill,
-                size: 48,
+                size: 40,
                 color: Colors.white,
               ),
             ),
@@ -587,7 +589,7 @@ class _LoginScreenState extends State<LoginScreen>
         Text(
           'Chào mừng trở lại!',
           style: GoogleFonts.outfit(
-            fontSize: 30,
+            fontSize: 26,
             fontWeight: FontWeight.w800,
             color: Colors.white,
             shadows: [
@@ -599,11 +601,11 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           'Đăng nhập để đồng bộ ghi chú & sử dụng AI',
           style: GoogleFonts.outfit(
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: FontWeight.w500,
             color: Colors.white.withValues(alpha: 0.85),
           ),
@@ -618,13 +620,15 @@ class _LoginScreenState extends State<LoginScreen>
   // ===========================================================================
 
   /// Main login card with frosted glass effect.
+  /// Wrapped in Expanded + SingleChildScrollView để chỉ card bên trong scroll
+  /// khi bàn phím mở, nhưng layout tổng thể vẫn cố định.
   Widget _buildGlassCard() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(24),
@@ -640,70 +644,74 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ],
           ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Email Field
-                _buildTextField(
-                  controller: _emailController,
-                  focusNode: _emailFocusNode,
-                  hint: 'Email',
-                  icon: CupertinoIcons.mail,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  onFieldSubmitted: (_) =>
-                      FocusScope.of(context).requestFocus(_passwordFocusNode),
-                  validator: _validateEmail,
-                ),
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Email Field
+                  _buildTextField(
+                    controller: _emailController,
+                    focusNode: _emailFocusNode,
+                    hint: 'Email',
+                    icon: CupertinoIcons.mail,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) =>
+                        FocusScope.of(context).requestFocus(_passwordFocusNode),
+                    validator: _validateEmail,
+                  ),
 
-                const SizedBox(height: 18),
+                  const SizedBox(height: 14),
 
-                // Password Field
-                _buildTextField(
-                  controller: _passwordController,
-                  focusNode: _passwordFocusNode,
-                  hint: 'Mật khẩu',
-                  icon: CupertinoIcons.lock,
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _handleLogin(),
-                  suffixIcon: _buildPasswordToggle(),
-                  validator: _validatePassword,
-                ),
+                  // Password Field
+                  _buildTextField(
+                    controller: _passwordController,
+                    focusNode: _passwordFocusNode,
+                    hint: 'Mật khẩu',
+                    icon: CupertinoIcons.lock,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _handleLogin(),
+                    suffixIcon: _buildPasswordToggle(),
+                    validator: _validatePassword,
+                  ),
 
-                const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
-                // Forgot Password Link
-                _buildForgotPasswordLink(),
+                  // Forgot Password Link
+                  _buildForgotPasswordLink(),
 
-                const SizedBox(height: 20),
-
-                // Error Message
-                if (_errorMessage != null) ...[
-                  _buildErrorBanner(),
                   const SizedBox(height: 16),
+
+                  // Error Message
+                  if (_errorMessage != null) ...[
+                    _buildErrorBanner(),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Login Button
+                  _buildLoginButton(),
+
+                  const SizedBox(height: 12),
+
+                  // ── OR Divider trong card ──
+                  _buildInCardDivider(),
+
+                  const SizedBox(height: 12),
+
+                  // Google Login Button
+                  _buildGoogleLoginButton(),
+
+                  const SizedBox(height: 16),
+
+                  // Register Link
+                  _buildRegisterLink(),
                 ],
-
-                // Login Button
-                _buildLoginButton(),
-
-                const SizedBox(height: 16),
-
-                // ── OR Divider trong card ──
-                _buildInCardDivider(),
-
-                const SizedBox(height: 16),
-
-                // Google Login Button
-                _buildGoogleLoginButton(),
-
-                const SizedBox(height: 20),
-
-                // Register Link
-                _buildRegisterLink(),
-              ],
+              ),
             ),
           ),
         ),
@@ -782,7 +790,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 20,
-          vertical: 18,
+          vertical: 16,
         ),
         errorStyle: GoogleFonts.nunito(
           fontSize: 12,
@@ -905,7 +913,7 @@ class _LoginScreenState extends State<LoginScreen>
       onTap: _isLoading ? null : _handleLogin,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 56,
+        height: 52,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: _isLoading
@@ -946,7 +954,7 @@ class _LoginScreenState extends State<LoginScreen>
               : Text(
                   'Đăng nhập',
                   style: GoogleFonts.nunito(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 0.5,
@@ -1027,7 +1035,7 @@ class _LoginScreenState extends State<LoginScreen>
     return GestureDetector(
       onTap: _handleGuestMode,
       child: Container(
-        height: 56,
+        height: 52,
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16),
@@ -1099,7 +1107,7 @@ class _LoginScreenState extends State<LoginScreen>
     return GestureDetector(
       onTap: _isLoading ? null : _handleGoogleLogin,
       child: Container(
-        height: 56,
+        height: 52,
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(16),
