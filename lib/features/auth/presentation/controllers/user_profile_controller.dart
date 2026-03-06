@@ -132,4 +132,10 @@ class UserProfileController extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  /// Cập nhật profile trên state (dùng khi EditProfile thành công)
+  void updateProfile(UserProfileResponse newProfile) {
+    _profile = newProfile;
+    notifyListeners();
+  }
 }

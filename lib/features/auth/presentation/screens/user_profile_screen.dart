@@ -13,6 +13,7 @@ import '../../../notes/domain/note_service.dart';
 import '../../data/models/user_profile_models.dart';
 import '../controllers/user_profile_controller.dart';
 import 'change_password_screen.dart';
+import 'edit_profile_screen.dart';
 import 'login_screen.dart';
 
 /// Màn hình Hồ sơ cá nhân — hiển thị thông tin chi tiết từ API.
@@ -133,8 +134,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
           children: [
-            // ── Back button ─────────────────────────────────────────
-            _buildBackButton(context),
+            // ── Header (Back & Edit) ────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildBackButton(context),
+                _buildEditProfileButton(context, profile),
+              ],
+            ),
 
             const SizedBox(height: 12),
 
@@ -1178,6 +1185,44 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           child: const Icon(CupertinoIcons.back, color: Colors.white, size: 20),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEditProfileButton(
+    BuildContext context,
+    UserProfileResponse profile,
+  ) {
+    return GestureDetector(
+      onTap: () async {
+        HapticFeedback.selectionClick();
+        final updatedProfile = await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EditProfileScreen(profile: profile),
+          ),
+        );
+        if (updatedProfile != null && updatedProfile is UserProfileResponse) {
+          if (!context.mounted) return;
+          _controller.updateProfile(updatedProfile);
+          // Sync AuthProvider để trang chủ và những nơi khác cập nhật theo
+          context.read<AuthProvider>().updateUser(
+            fullName: updatedProfile.fullName,
+            avatarUrl: updatedProfile.avatarUrl,
+          );
+        } else if (updatedProfile == true) {
+          if (!context.mounted) return;
+          _navigateToLogin();
+        }
+      },
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: const Icon(CupertinoIcons.pencil, color: Colors.white, size: 20),
       ),
     );
   }
