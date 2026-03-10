@@ -15,6 +15,7 @@ import '../controllers/user_profile_controller.dart';
 import 'change_password_screen.dart';
 import 'edit_profile_screen.dart';
 import 'login_screen.dart';
+import '../../../subscription/presentation/screens/upgrade_plan_screen.dart';
 
 /// Màn hình Hồ sơ cá nhân — hiển thị thông tin chi tiết từ API.
 ///
@@ -207,6 +208,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
             const SizedBox(height: 16),
 
+            // ── Nút Nâng cấp VIP ────────────────────────────────────
+            if (!profile.subscription.planType.contains('Year') &&
+                !profile.subscription.planType.contains('Năm')) ...[
+              _buildUpgradeVipCard(context, profile.subscription.planType),
+              const SizedBox(height: 16),
+            ],
+
             // ── Notes Stats Section ─────────────────────────────────
             _buildNotesStatsSection(
               profile.totalNotesBackedUp,
@@ -224,6 +232,57 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             _buildActionsCard(context),
 
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPGRADE VIP SECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildUpgradeVipCard(BuildContext context, String currentPlanType) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => UpgradePlanScreen(currentPlanType: currentPlanType),
+          ),
+        );
+      },
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              CupertinoIcons.sparkles,
+              color: Colors.black87,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Nâng cấp lên Premium',
+              style: GoogleFonts.nunito(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
+              ),
+            ),
           ],
         ),
       ),
