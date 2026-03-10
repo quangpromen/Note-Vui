@@ -44,6 +44,25 @@ class AuthResponse {
     );
   }
 
+  /// Tạo bản sao với các thuộc tính bị thay đổi.
+  AuthResponse copyWith({
+    String? accessToken,
+    String? refreshToken,
+    String? userId,
+    String? fullName,
+    String? email,
+    String? avatarUrl,
+  }) {
+    return AuthResponse(
+      accessToken: accessToken ?? this.accessToken,
+      refreshToken: refreshToken ?? this.refreshToken,
+      userId: userId ?? this.userId,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
+
   /// Chuyển thành JSON map.
   Map<String, dynamic> toJson() => {
     'accessToken': accessToken,

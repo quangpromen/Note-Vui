@@ -253,6 +253,17 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cập nhật thông tin người dùng hiện tại (khi Edit Profile).
+  void updateUser({String? fullName, String? avatarUrl}) {
+    if (_currentUser == null) return;
+
+    _currentUser = _currentUser!.copyWith(
+      fullName: fullName,
+      avatarUrl: avatarUrl,
+    );
+    notifyListeners();
+  }
+
   /// Xóa thông báo lỗi (khi user đóng SnackBar hoặc chuyển màn hình).
   void clearError() {
     _errorMessage = null;
