@@ -402,8 +402,8 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // resizeToAvoidBottomInset: false giúp layout không bị đẩy lên khi mở keyboard
-      resizeToAvoidBottomInset: false,
+      // Cho phép layout đẩy lên khi mở keyboard để người dùng thấy ô nhập liệu
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           // Layer 1: Gradient Background
@@ -412,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen>
           // Layer 2: Animated floating orbs
           _buildFloatingOrbs(),
 
-          // Layer 3: Content — không scroll, dùng Column fit màn hình
+          // Layer 3: Content — Dùng Center và SingleChildScrollView để responsive
           SafeArea(
             child: AnimatedBuilder(
               animation: _formAnimController,
@@ -425,37 +425,38 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 );
               },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 32),
+              child: Center(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Logo
+                      _buildLogo(),
 
-                    // Logo
-                    _buildLogo(),
+                      const SizedBox(height: 16),
 
-                    const SizedBox(height: 16),
+                      // Welcome text
+                      _buildWelcomeText(),
 
-                    // Welcome text
-                    _buildWelcomeText(),
+                      const SizedBox(height: 24),
 
-                    const SizedBox(height: 24),
+                      // Glassmorphism Login Card
+                      _buildGlassCard(),
 
-                    // Glassmorphism Login Card — chiếm phần lớn không gian
-                    Expanded(child: _buildGlassCard()),
+                      const SizedBox(height: 16),
 
-                    const SizedBox(height: 16),
+                      // Divider
+                      _buildDivider(),
 
-                    // Divider
-                    _buildDivider(),
+                      const SizedBox(height: 16),
 
-                    const SizedBox(height: 16),
-
-                    // Guest Mode Button
-                    _buildGuestModeButton(),
-
-                    const SizedBox(height: 20),
-                  ],
+                      // Guest Mode Button
+                      _buildGuestModeButton(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -620,15 +621,14 @@ class _LoginScreenState extends State<LoginScreen>
   // ===========================================================================
 
   /// Main login card with frosted glass effect.
-  /// Wrapped in Expanded + SingleChildScrollView để chỉ card bên trong scroll
-  /// khi bàn phím mở, nhưng layout tổng thể vẫn cố định.
+  /// Không dùng SingleChildScrollView bên trong vì bên ngoài đã xử lý scroll.
   Widget _buildGlassCard() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(24),
@@ -644,14 +644,12 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ],
           ),
-          child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                   // Email Field
                   _buildTextField(
                     controller: _emailController,
@@ -715,8 +713,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   // ===========================================================================
