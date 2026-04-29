@@ -5,6 +5,7 @@
 ///
 /// Response chứa toàn bộ thông tin user: cơ bản, gói VIP,
 /// thống kê ghi chú, và thống kê sử dụng AI.
+library;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AI ACTION USAGE — Thống kê từng loại hành động AI trong ngày

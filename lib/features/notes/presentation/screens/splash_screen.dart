@@ -68,6 +68,8 @@ class _SplashScreenState extends State<SplashScreen>
     // Check if user is logged in
     final isLoggedIn = await AuthService().isLoggedIn();
 
+    if (!mounted) return;
+
     // Navigate based on auth state
     final Widget targetScreen = isLoggedIn
         ? HomeScreen(noteService: widget.noteService)
