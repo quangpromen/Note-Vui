@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -473,12 +474,22 @@ class _EditorScreenState extends State<EditorScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          Expanded(
+            child: _buildBody(),
+          ),
+          _buildBottomToolbar(),
+        ],
+      ),
     );
   }
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      backgroundColor: AppColors.background,
+      elevation: 0,
+      scrolledUnderElevation: 0,
       leading: _buildBackButton(),
       actions: [
         // Show delete button only when editing existing note
@@ -500,17 +511,17 @@ class _EditorScreenState extends State<EditorScreen> {
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: const Icon(
-          CupertinoIcons.back,
+          Icons.arrow_back,
           size: 20,
           color: AppColors.textPrimary,
         ),
@@ -557,29 +568,29 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.purple.shade100, Colors.blue.shade100],
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF3AEFF), Color(0xFFFCD6FF)], // secondary-container to secondary-fixed
           ),
           borderRadius: BorderRadius.circular(50),
           boxShadow: [
             BoxShadow(
-              color: Colors.purple.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: const Color(0xFF824790).withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(CupertinoIcons.sparkles, size: 18, color: Colors.purple),
+            const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF753B83)), // on-secondary-container
             const SizedBox(width: 6),
             Text(
               'AI Hỗ trợ',
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.manrope(
                 fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.purple.shade700,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF753B83),
               ),
             ),
           ],
@@ -592,17 +603,17 @@ class _EditorScreenState extends State<EditorScreen> {
     return GestureDetector(
       onTap: _isSaving ? null : _saveNote,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: _isSaving
-              ? AppColors.primary.withValues(alpha: 0.5)
-              : AppColors.primary,
+              ? const Color(0xFF9AE6B4).withValues(alpha: 0.5)
+              : const Color(0xFF9AE6B4), // primary-container
           borderRadius: BorderRadius.circular(50),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: const Color(0xFF1E6B43).withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -615,21 +626,21 @@ class _EditorScreenState extends State<EditorScreen> {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B6941)),
                     ),
                   )
                 : const Icon(
-                    CupertinoIcons.checkmark_alt,
+                    Icons.check,
                     size: 18,
-                    color: Colors.white,
+                    color: Color(0xFF1B6941), // on-primary-container
                   ),
             const SizedBox(width: 6),
             Text(
               'Lưu',
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.manrope(
                 fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1B6941),
               ),
             ),
           ],
@@ -639,37 +650,58 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _buildBody() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTitleInput(),
-          const SizedBox(height: 8),
-          _buildDivider(),
-          const SizedBox(height: 24),
-          _buildContentInput(),
-        ],
-      ),
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTitleInput(),
+                const SizedBox(height: 8),
+                _buildDivider(),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _StickyModeToolbarDelegate(
+            child: _buildModeToolbar(),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: _buildContentInput(),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildTitleInput() {
     return TextField(
       controller: _titleController,
-      style: GoogleFonts.nunito(
-        fontSize: 28,
-        fontWeight: FontWeight.w800,
+      style: GoogleFonts.manrope(
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
         color: AppColors.textPrimary,
+        letterSpacing: -0.5,
       ),
       decoration: InputDecoration(
         hintText: 'Tiêu đề ghi chú...',
-        hintStyle: GoogleFonts.nunito(
-          fontSize: 28,
-          fontWeight: FontWeight.w800,
+        hintStyle: GoogleFonts.manrope(
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
           color: AppColors.textHint.withValues(alpha: 0.5),
+          letterSpacing: -0.5,
         ),
         border: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
+        isDense: true,
       ),
       maxLines: null,
     );
@@ -677,13 +709,59 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Widget _buildDivider() {
     return Container(
-      height: 3,
-      width: 60,
+      height: 4,
+      width: 40,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.fabStart, AppColors.fabEnd],
+        color: const Color(0xFF9AE6B4), // primary-container
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
+  Widget _buildModeToolbar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5EF), // surface-container-low
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.of(context).size.width - 40 - 32, // screen width - body padding - container padding
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildModeIcon(Icons.keyboard_outlined, true),
+              _buildModeIcon(Icons.edit_outlined, false),
+              _buildModeIcon(Icons.border_color_outlined, false),
+              _buildModeIcon(Icons.cleaning_services_outlined, false),
+              _buildModeIcon(Icons.gesture, false),
+              _buildModeIcon(Icons.undo, false),
+              _buildModeIcon(Icons.redo, false),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+
+  Widget _buildModeIcon(IconData icon, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: isActive 
+        ? BoxDecoration(
+            color: const Color(0xFF9AE6B4).withValues(alpha: 0.3), // primary-container/30
+            shape: BoxShape.circle,
+          )
+        : null,
+      child: Icon(
+        icon,
+        size: 20,
+        color: isActive ? const Color(0xFF1E6B43) : const Color(0xFF404941), // primary : on-surface-variant
       ),
     );
   }
@@ -691,23 +769,115 @@ class _EditorScreenState extends State<EditorScreen> {
   Widget _buildContentInput() {
     return TextField(
       controller: _contentController,
-      style: GoogleFonts.nunito(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
+      style: GoogleFonts.manrope(
+        fontSize: 18,
+        fontWeight: FontWeight.w400,
         color: AppColors.textPrimary,
-        height: 1.8,
+        height: 1.6,
       ),
       decoration: InputDecoration(
         hintText: 'Viết gì đó đi...',
-        hintStyle: GoogleFonts.nunito(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
+        hintStyle: GoogleFonts.manrope(
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
           color: AppColors.textHint.withValues(alpha: 0.5),
         ),
         border: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
       ),
       maxLines: null,
       minLines: 20,
     );
+  }
+
+  Widget _buildBottomToolbar() {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: EdgeInsets.only(
+            left: 16, 
+            right: 16, 
+            top: 16, 
+            bottom: MediaQuery.of(context).padding.bottom + 16
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.8),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                offset: const Offset(0, -4),
+                blurRadius: 20,
+              ),
+            ],
+            border: const Border(
+              top: BorderSide(
+                color: Color(0x1A000000), // Colors.grey.withValues(alpha: 0.1) replacement for const
+                width: 1,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildBottomIcon(Icons.check_box_outlined, true),
+              _buildBottomIcon(Icons.palette_outlined, false),
+              _buildBottomIcon(Icons.format_size, false),
+              _buildBottomIcon(Icons.format_bold, false),
+              _buildBottomIcon(Icons.format_align_left, false),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomIcon(IconData icon, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: isActive
+        ? BoxDecoration(
+            color: Colors.green.shade50, // bg-green-50
+            shape: BoxShape.circle,
+          )
+        : const BoxDecoration(
+            color: Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+      child: Icon(
+        icon,
+        size: 24,
+        color: isActive ? Colors.green.shade700 : Colors.grey.shade400, // text-green-700 or text-stone-400
+      ),
+    );
+  }
+}
+
+class _StickyModeToolbarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  _StickyModeToolbarDelegate({required this.child});
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: AppColors.background, // Match background so it hides text scrolling behind it
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), // padding horizontal + bottom margin
+      alignment: Alignment.topCenter,
+      child: child,
+    );
+  }
+
+  @override
+  double get maxExtent => 76.0; // 52 (height of toolbar) + 24 (bottom padding) = 76
+
+  @override
+  double get minExtent => 76.0;
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
+    return true;
   }
 }
