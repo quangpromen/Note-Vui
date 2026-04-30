@@ -114,7 +114,7 @@ class NoteService extends ChangeNotifier {
       _trashNotes = newTrashNotes;
       notifyListeners();
     } catch (e) {
-      print('Error refreshing notes from DB: $e');
+      debugPrint('Error refreshing notes from DB: $e');
     }
   }
 

@@ -33,6 +33,7 @@ build/
 # API Keys & Secrets
 secrets.dart
 secrets.json
+stitch_mcp.json
 **/secrets/
 **/config/secrets.*
 **/config/keys.*
