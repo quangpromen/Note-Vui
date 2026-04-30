@@ -491,13 +491,13 @@ class NoteRepository {
     // **CRITICAL:** Check if user is logged in - Guests cannot sync
     final isUser = await AuthService().isLoggedIn();
     if (!isUser) {
-      print('[NoteRepository] Guest mode - sync skipped');
+      debugPrint('[NoteRepository] Guest mode - sync skipped');
       return; // Stop immediately. Do not call API.
     }
 
     // Prevent concurrent sync operations
     if (_isSyncing) {
-      print('[NoteRepository] Sync already in progress, skipping...');
+      debugPrint('[NoteRepository] Sync already in progress, skipping...');
       return;
     }
 
@@ -507,7 +507,7 @@ class NoteRepository {
       // Step 1: Check network connectivity
       final connectivityResult = await _connectivity.checkConnectivity();
       if (connectivityResult.contains(ConnectivityResult.none)) {
-        print('[NoteRepository] Offline - sync deferred');
+        debugPrint('[NoteRepository] Offline - sync deferred');
         return;
       }
 
@@ -521,7 +521,7 @@ class NoteRepository {
         // Basic GUID validation: UUID v4 is 36 chars (32 hex + 4 dashes)
         // Legacy IDs were shorter numeric strings.
         if (note.id.length != 36) {
-          print(
+          debugPrint(
             '[NoteRepository] Skipping sync for note ${note.id}: Invalid GUID (Legacy Data)',
           );
           return false;
@@ -531,7 +531,7 @@ class NoteRepository {
 
       final lastSyncTime = await _getLastSyncTime();
 
-      print(
+      debugPrint(
         '[NoteRepository] Syncing: ${pendingNotes.length} changes, LastSync: $lastSyncTime',
       );
 
@@ -557,7 +557,7 @@ class NoteRepository {
           final syncedNote = currentNote.copyWith(isSynced: true);
           await box.put(sentNote.id, syncedNote);
         } else {
-          print(
+          debugPrint(
             '[NoteRepository] Note ${sentNote.id} changed during sync, keeping isSynced=false',
           );
         }
@@ -574,7 +574,7 @@ class NoteRepository {
           } else if (existingNote.isPermanentlyDeleted) {
             // User permanently deleted it locally and we successfully sent the soft-delete to server.
             // We can now physically remove it.
-            print(
+            debugPrint(
               '[NoteRepository] Physically deleting permanently deleted note confirmed by server: ${serverNote.id}',
             );
             await box.delete(serverNote.id);
@@ -584,7 +584,7 @@ class NoteRepository {
           }
         } else {
           // Update local note with server data and mark as synced
-          print(
+          debugPrint(
             '[NoteRepository] Upserting: ${serverNote.id} -> ServerID: ${serverNote.serverId}',
           );
           // serverNote `fromServerResponse` already sets isSynced=true
@@ -595,16 +595,16 @@ class NoteRepository {
       // Step 6: Update lastSyncTime
       await _setLastSyncTime(syncResponse.serverTime);
 
-      print('[NoteRepository] Sync completed successfully');
+      debugPrint('[NoteRepository] Sync completed successfully');
     } on SyncException catch (e) {
       // Log sync errors but don't throw - data stays local for retry
-      print('[NoteRepository] Sync failed: $e');
-      print(
+      debugPrint('[NoteRepository] Sync failed: $e');
+      debugPrint(
         '[NoteRepository] Data preserved locally - will retry on next change',
       );
     } catch (e) {
       // Catch any unexpected errors
-      print('[NoteRepository] Unexpected sync error: $e');
+      debugPrint('[NoteRepository] Unexpected sync error: $e');
     } finally {
       _isSyncing = false;
     }
@@ -619,14 +619,14 @@ class NoteRepository {
       // Check connectivity first
       final connectivityResult = await _connectivity.checkConnectivity();
       if (connectivityResult.contains(ConnectivityResult.none)) {
-        print('[NoteRepository] Cannot sync - device is offline');
+        debugPrint('[NoteRepository] Cannot sync - device is offline');
         return false;
       }
 
       await syncPendingNotes();
       return true;
     } catch (e) {
-      print('[NoteRepository] Manual sync failed: $e');
+      debugPrint('[NoteRepository] Manual sync failed: $e');
       return false;
     }
   }

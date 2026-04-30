@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/auth/token_storage.dart';
 import '../../../../services/api_config.dart';
@@ -58,7 +59,7 @@ class SyncClient {
       LogInterceptor(
         requestBody: true,
         responseBody: true,
-        logPrint: (log) => print('[SyncClient] $log'),
+        logPrint: (log) => debugPrint('[SyncClient] $log'),
       ),
     );
   }
@@ -80,25 +81,25 @@ class SyncClient {
         'changes': changes.map((note) => note.toSyncDto()).toList(),
       };
 
-      print('[SyncClient] Syncing ${changes.length} changes...');
-      print('[SyncClient] Payload: $payload'); // Uncomment for debugging
+      debugPrint('[SyncClient] Syncing ${changes.length} changes...');
+      debugPrint('[SyncClient] Payload: $payload');
 
       final response = await _dio.post<dynamic>(_syncEndpoint, data: payload);
 
       if (response.statusCode == 200 && response.data != null) {
-        print('[SyncClient] Response data type: ${response.data.runtimeType}');
+        debugPrint('[SyncClient] Response data type: ${response.data.runtimeType}');
         // print('[SyncClient] Response data: ${response.data}'); // Debugging
 
         final Map<String, dynamic> responseData;
         if (response.data is Map) {
           responseData = Map<String, dynamic>.from(response.data as Map);
         } else if (response.data is String) {
-          print(
+          debugPrint(
             '[SyncClient] Response is String (likely error HTML or double-encoded JSON)',
           );
           throw SyncException('Server returned String instead of JSON object');
         } else {
-          print(
+          debugPrint(
             '[SyncClient] Unexpected response type: ${response.data.runtimeType}',
           );
           throw SyncException(
@@ -107,7 +108,7 @@ class SyncClient {
         }
 
         final syncResponse = SyncResponse.fromJson(responseData);
-        print(
+        debugPrint(
           '[SyncClient] Sync successful. Received ${syncResponse.upserts.length} updates. Server time: ${syncResponse.serverTime}',
         );
         return syncResponse;
@@ -118,10 +119,10 @@ class SyncClient {
         );
       }
     } on DioException catch (e) {
-      print('[SyncClient] DioException: ${e.message}');
+      debugPrint('[SyncClient] DioException: ${e.message}');
       if (e.response != null) {
-        print('[SyncClient] Response Status: ${e.response?.statusCode}');
-        print('[SyncClient] Response Data: ${e.response?.data}');
+        debugPrint('[SyncClient] Response Status: ${e.response?.statusCode}');
+        debugPrint('[SyncClient] Response Data: ${e.response?.data}');
       }
       throw SyncException(
         _parseDioError(e),
@@ -129,7 +130,7 @@ class SyncClient {
         originalError: e,
       );
     } catch (e) {
-      print('[SyncClient] Unexpected error: $e');
+      debugPrint('[SyncClient] Unexpected error: $e');
       throw SyncException('Sync failed: $e', originalError: e);
     }
   }
@@ -200,7 +201,7 @@ class SyncResponse {
         upserts:
             (json['upserts'] as List?)?.map((e) {
               if (e is! Map) {
-                print('[SyncResponse] Unexpected element in upserts: $e');
+                debugPrint('[SyncResponse] Unexpected element in upserts: $e');
                 throw Exception('Upsert element is not a Map');
               }
               return NoteModel.fromServerResponse(Map<String, dynamic>.from(e));
@@ -210,7 +211,7 @@ class SyncResponse {
         stats: json['stats'] as Map<String, dynamic>?,
       );
     } catch (e, stack) {
-      print(
+      debugPrint(
         '[SyncResponse] Error parsing SyncResponse: $e\nStack: $stack\nJSON: $json',
       );
       rethrow;
