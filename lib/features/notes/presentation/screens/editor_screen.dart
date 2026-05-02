@@ -1,30 +1,54 @@
-import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../providers/ai_provider.dart';
 import '../../data/models/note_model.dart';
 import '../../domain/note_service.dart';
+import '../controllers/drawing_toolbar_controller.dart';
 import '../widgets/ai_bottom_sheet.dart';
 import '../widgets/ai_grammar_bottom_sheet.dart';
 import '../widgets/ai_ideas_bottom_sheet.dart';
 import '../widgets/ai_translation_bottom_sheet.dart';
-import 'package:provider/provider.dart';
+import '../widgets/bottom_formatting_toolbar.dart';
+import '../widgets/drawing_canvas.dart';
+import '../widgets/drawing_toolbar.dart';
 
-/// Note editor screen for creating and editing notes.
+// =============================================================================
+// Design tokens local to this screen
+// =============================================================================
+
+/// Colors used exclusively within the editor screen widgets.
+abstract final class _EditorColors {
+  // AppBar buttons
+  static const Color aiGradientStart = Color(0xFFF3AEFF);
+  static const Color aiGradientEnd = Color(0xFFFCD6FF);
+  static const Color aiText = Color(0xFF753B83);
+  static const Color aiShadow = Color(0xFF824790);
+
+  static const Color saveBackground = Color(0xFF9AE6B4);
+  static const Color saveText = Color(0xFF1B6941);
+  static const Color saveShadow = Color(0xFF1E6B43);
+
+  // Divider accent
+  static const Color dividerAccent = Color(0xFF9AE6B4);
+}
+
+// =============================================================================
+// EditorScreen — Public API
+// =============================================================================
+
+/// Full-screen note editor for creating and editing notes.
 ///
-/// Features:
-/// - Large title input field
-/// - Content area with comfortable line height
-/// - AI support button with bottom sheet
-/// - Save button with confirmation feedback
+/// Provides a title field, rich content area, drawing toolbar,
+/// AI assistant integration, and bottom formatting toolbar.
 class EditorScreen extends StatefulWidget {
-  /// Optional note to edit. If null, creates a new note.
+  /// If non-null the editor opens in *edit* mode; otherwise *create* mode.
   final NoteModel? note;
 
-  /// The note service for saving notes
+  /// Service used to persist notes.
   final NoteService noteService;
 
   const EditorScreen({super.key, this.note, required this.noteService});
@@ -33,151 +57,216 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
+// =============================================================================
+// _EditorScreenState
+// =============================================================================
+
 class _EditorScreenState extends State<EditorScreen> {
-  late TextEditingController _titleController;
-  late TextEditingController _contentController;
+  late final TextEditingController _titleController;
+  late final TextEditingController _contentController;
+  late final DrawingToolbarController _toolbarController;
+
   bool _isSaving = false;
   bool _isDeleting = false;
+
+  // ---------------------------------------------------------------------------
+  // Convenience getters
+  // ---------------------------------------------------------------------------
+
+  bool get _isEditMode => widget.note != null;
+  String get _defaultTitle => 'Không có tiêu đề';
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.note?.title ?? '');
-    _contentController = TextEditingController(
-      text: widget.note?.content ?? '',
-    );
+    _contentController = TextEditingController(text: widget.note?.content ?? '');
+    _toolbarController = DrawingToolbarController();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _toolbarController.dispose();
     super.dispose();
   }
 
-  /// Shows the AI support bottom sheet
-  void _showAIBottomSheet() async {
+  // ---------------------------------------------------------------------------
+  // Snackbar helpers (DRY — eliminates repeated SnackBar boilerplate)
+  // ---------------------------------------------------------------------------
+
+  void _showIconSnackBar({
+    required IconData icon,
+    required String message,
+    required Color backgroundColor,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                message,
+                style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _showWarningSnackBar(String message) {
+    _showIconSnackBar(
+      icon: CupertinoIcons.exclamationmark_circle,
+      message: message,
+      backgroundColor: Colors.orange,
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    _showIconSnackBar(
+      icon: CupertinoIcons.xmark_circle,
+      message: message,
+      backgroundColor: Colors.red,
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    _showIconSnackBar(
+      icon: CupertinoIcons.checkmark_circle_fill,
+      message: message,
+      backgroundColor: AppColors.primary,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI actions
+  // ---------------------------------------------------------------------------
+
+  Future<void> _showAIBottomSheet() async {
     final action = await AIBottomSheet.show(context);
     if (action != null && mounted) {
-      _handleAIAction(action);
+      await _handleAIAction(action);
     }
   }
 
   Future<void> _handleAIAction(AIAction action) async {
     final content = _contentController.text.trim();
+
     if (content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(
-                CupertinoIcons.exclamationmark_circle,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Bạn cần nhập nội dung để sử dụng tính năng AI!',
-                style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      _showWarningSnackBar('Bạn cần nhập nội dung để sử dụng tính năng AI!');
       return;
     }
 
-    if (action == AIAction.summarize) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-
-      final aiProvider = context.read<AiProvider>();
-      await aiProvider.summarizeContent(content);
-
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-
-        if (aiProvider.state == AiProviderState.success &&
-            aiProvider.lastResponse != null) {
-          _showAIResultDialog(
-            'Tóm tắt nội dung',
-            aiProvider.lastResponse!.result ?? '',
-          );
-        } else if (aiProvider.state == AiProviderState.error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Lỗi: ${aiProvider.errorMessage}',
-                style: GoogleFonts.nunito(),
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        } else if (aiProvider.state == AiProviderState.showPremiumDialog) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Vui lòng nâng cấp VIP để dùng tính năng này!',
-                style: GoogleFonts.nunito(),
-              ),
-              backgroundColor: Colors.orange,
-              action: SnackBarAction(
-                label: 'Nâng cấp',
-                onPressed: () {},
-                textColor: Colors.white,
-              ),
-            ),
-          );
-        }
-      }
-    } else if (action == AIAction.translate) {
-      AiTranslationBottomSheet.show(
-        context,
-        originalContent: content,
-        noteId: widget.note?.id,
-        onReplace: (translatedText) {
-          setState(() {
-            _contentController.text = translatedText;
-          });
-        },
-      );
-    } else if (action == AIAction.suggestIdeas) {
-      AiIdeasBottomSheet.show(
-        context,
-        originalContent: content,
-        noteId: widget.note?.id,
-        onAppend: (ideaText) {
-          setState(() {
-            final currentContent = _contentController.text;
-            if (currentContent.isNotEmpty) {
-              _contentController.text =
-                  '$currentContent\n\n---\n💡 Ý tưởng AI:\n$ideaText';
-            } else {
-              _contentController.text = ideaText;
-            }
-          });
-        },
-      );
-    } else if (action == AIAction.spellCheck) {
-      AiGrammarBottomSheet.show(
-        context,
-        originalContent: content,
-        noteId: widget.note?.id,
-        onReplace: (correctedText) {
-          setState(() {
-            _contentController.text = correctedText;
-          });
-        },
-      );
+    switch (action) {
+      case AIAction.summarize:
+        await _handleSummarize(content);
+      case AIAction.translate:
+        _handleTranslate(content);
+      case AIAction.suggestIdeas:
+        _handleSuggestIdeas(content);
+      case AIAction.spellCheck:
+        _handleSpellCheck(content);
     }
+  }
+
+  Future<void> _handleSummarize(String content) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final aiProvider = context.read<AiProvider>();
+    await aiProvider.summarizeContent(content);
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    switch (aiProvider.state) {
+      case AiProviderState.success when aiProvider.lastResponse != null:
+        _showAIResultDialog(
+          'Tóm tắt nội dung',
+          aiProvider.lastResponse!.result ?? '',
+        );
+      case AiProviderState.error:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Lỗi: ${aiProvider.errorMessage}',
+              style: GoogleFonts.nunito(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      case AiProviderState.showPremiumDialog:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Vui lòng nâng cấp VIP để dùng tính năng này!',
+              style: GoogleFonts.nunito(),
+            ),
+            backgroundColor: Colors.orange,
+            action: SnackBarAction(
+              label: 'Nâng cấp',
+              onPressed: () {},
+              textColor: Colors.white,
+            ),
+          ),
+        );
+      default:
+        break;
+    }
+  }
+
+  void _handleTranslate(String content) {
+    AiTranslationBottomSheet.show(
+      context,
+      originalContent: content,
+      noteId: widget.note?.id,
+      onReplace: (translatedText) {
+        setState(() => _contentController.text = translatedText);
+      },
+    );
+  }
+
+  void _handleSuggestIdeas(String content) {
+    AiIdeasBottomSheet.show(
+      context,
+      originalContent: content,
+      noteId: widget.note?.id,
+      onAppend: (ideaText) {
+        setState(() {
+          final current = _contentController.text;
+          _contentController.text = current.isNotEmpty
+              ? '$current\n\n---\n💡 Ý tưởng AI:\n$ideaText'
+              : ideaText;
+        });
+      },
+    );
+  }
+
+  void _handleSpellCheck(String content) {
+    AiGrammarBottomSheet.show(
+      context,
+      originalContent: content,
+      noteId: widget.note?.id,
+      onReplace: (correctedText) {
+        setState(() => _contentController.text = correctedText);
+      },
+    );
   }
 
   void _showAIResultDialog(String title, String result) {
@@ -210,9 +299,7 @@ class _EditorScreenState extends State<EditorScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () {
               Navigator.pop(context);
-              setState(() {
-                _contentController.text = result;
-              });
+              setState(() => _contentController.text = result);
             },
             child: Text(
               'Thay thế',
@@ -224,100 +311,79 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  /// Saves the note to storage
+  // ---------------------------------------------------------------------------
+  // CRUD actions
+  // ---------------------------------------------------------------------------
+
   Future<void> _saveNote() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
-    // Validate that at least title or content is not empty
     if (title.isEmpty && content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(
-                CupertinoIcons.exclamationmark_circle,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Vui lòng nhập tiêu đề hoặc nội dung!',
-                style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      _showWarningSnackBar('Vui lòng nhập tiêu đề hoặc nội dung!');
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      if (widget.note != null) {
-        // Update existing note
+      final resolvedTitle = title.isNotEmpty ? title : _defaultTitle;
+
+      if (_isEditMode) {
         await widget.noteService.updateNote(
           id: widget.note!.id,
-          title: title.isNotEmpty ? title : 'Không có tiêu đề',
+          title: resolvedTitle,
           content: content,
         );
       } else {
-        // Create new note
         await widget.noteService.addNote(
-          title: title.isNotEmpty ? title : 'Không có tiêu đề',
+          title: resolvedTitle,
           content: content,
         );
       }
 
       if (mounted) {
-        _showSaveConfirmation();
+        _showSuccessSnackBar('Đã lưu ghi chú thành công!');
         Navigator.pop(context);
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(CupertinoIcons.xmark_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                Text(
-                  'Lỗi khi lưu ghi chú!',
-                  style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        _showErrorSnackBar('Lỗi khi lưu ghi chú!');
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  /// Shows delete confirmation dialog and deletes note if confirmed
-  Future<void> _showDeleteConfirmation() async {
-    if (widget.note == null) return;
+  Future<void> _deleteNote() async {
+    if (!_isEditMode) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await _showDeleteConfirmationDialog();
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+
+    try {
+      await widget.noteService.deleteNote(widget.note!.id);
+      if (mounted) {
+        _showIconSnackBar(
+          icon: CupertinoIcons.trash,
+          message: 'Đã chuyển vào thùng rác!',
+          backgroundColor: Colors.red.shade400,
+        );
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) {
+        _showErrorSnackBar('Lỗi khi xóa ghi chú!');
+      }
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  Future<bool?> _showDeleteConfirmationDialog() {
+    return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -346,7 +412,8 @@ class _EditorScreenState extends State<EditorScreen> {
           ],
         ),
         content: Text(
-          'Ghi chú này sẽ được chuyển vào thùng rác. Bạn có thể khôi phục nó trong vòng 30 ngày.',
+          'Ghi chú này sẽ được chuyển vào thùng rác. '
+          'Bạn có thể khôi phục nó trong vòng 30 ngày.',
           style: GoogleFonts.nunito(
             fontSize: 15,
             color: AppColors.textSecondary,
@@ -380,94 +447,11 @@ class _EditorScreenState extends State<EditorScreen> {
         ],
       ),
     );
-
-    if (confirmed == true && mounted) {
-      setState(() {
-        _isDeleting = true;
-      });
-
-      try {
-        await widget.noteService.deleteNote(widget.note!.id);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(CupertinoIcons.trash, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Đã chuyển vào thùng rác!',
-                    style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.red.shade400,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(CupertinoIcons.xmark_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Lỗi khi xóa ghi chú!',
-                    style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isDeleting = false;
-          });
-        }
-      }
-    }
   }
 
-  /// Shows a save confirmation snackbar
-  void _showSaveConfirmation() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(
-              CupertinoIcons.checkmark_circle_fill,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Đã lưu ghi chú thành công!',
-              style: GoogleFonts.nunito(fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Build — root
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -476,37 +460,93 @@ class _EditorScreenState extends State<EditorScreen> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          Expanded(
-            child: _buildBody(),
-          ),
-          _buildBottomToolbar(),
+          Expanded(child: _buildScrollableBody()),
+          const BottomFormattingToolbar(),
         ],
       ),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Build — AppBar
+  // ---------------------------------------------------------------------------
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: AppColors.background,
       elevation: 0,
       scrolledUnderElevation: 0,
-      leading: _buildBackButton(),
+      leading: _EditorBackButton(onPressed: () => Navigator.pop(context)),
       actions: [
-        // Show delete button only when editing existing note
-        if (widget.note != null) ...[
-          _buildDeleteButton(),
+        if (_isEditMode) ...[
+          _EditorDeleteButton(
+            isDeleting: _isDeleting,
+            onTap: _deleteNote,
+          ),
           const SizedBox(width: 8),
         ],
-        _buildAIButton(),
+        _EditorAIButton(onTap: _showAIBottomSheet),
         const SizedBox(width: 12),
-        _buildSaveButton(),
+        _EditorSaveButton(isSaving: _isSaving, onTap: _saveNote),
         const SizedBox(width: 16),
       ],
     );
   }
 
-  Widget _buildBackButton() {
+  // ---------------------------------------------------------------------------
+  // Build — Body
+  // ---------------------------------------------------------------------------
+
+  Widget _buildScrollableBody() {
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _EditorTitleField(controller: _titleController),
+                const SizedBox(height: 8),
+                const _EditorDivider(),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _StickyToolbarDelegate(
+            child: DrawingToolbar(controller: _toolbarController),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: DrawingCanvas(
+              controller: _toolbarController,
+              child: _EditorContentField(controller: _contentController),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// Private extracted widgets — AppBar buttons
+// =============================================================================
+
+class _EditorBackButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _EditorBackButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
     return IconButton(
+      onPressed: onPressed,
       icon: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -526,17 +566,27 @@ class _EditorScreenState extends State<EditorScreen> {
           color: AppColors.textPrimary,
         ),
       ),
-      onPressed: () => Navigator.pop(context),
     );
   }
+}
 
-  Widget _buildDeleteButton() {
+class _EditorDeleteButton extends StatelessWidget {
+  final bool isDeleting;
+  final VoidCallback onTap;
+
+  const _EditorDeleteButton({
+    required this.isDeleting,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _isDeleting ? null : _showDeleteConfirmation,
+      onTap: isDeleting ? null : onTap,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: _isDeleting ? Colors.red.shade100 : Colors.red.shade50,
+          color: isDeleting ? Colors.red.shade100 : Colors.red.shade50,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -546,35 +596,41 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
           ],
         ),
-        child: _isDeleting
+        child: isDeleting
             ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.red.shade400,
-                  ),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.red.shade400),
                 ),
               )
             : Icon(CupertinoIcons.trash, size: 20, color: Colors.red.shade400),
       ),
     );
   }
+}
 
-  Widget _buildAIButton() {
+class _EditorAIButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _EditorAIButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _showAIBottomSheet,
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFF3AEFF), Color(0xFFFCD6FF)], // secondary-container to secondary-fixed
+            colors: [_EditorColors.aiGradientStart, _EditorColors.aiGradientEnd],
           ),
           borderRadius: BorderRadius.circular(50),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF824790).withValues(alpha: 0.1),
+              color: _EditorColors.aiShadow.withValues(alpha: 0.1),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -583,14 +639,14 @@ class _EditorScreenState extends State<EditorScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF753B83)), // on-secondary-container
+            const Icon(Icons.auto_awesome, size: 18, color: _EditorColors.aiText),
             const SizedBox(width: 6),
             Text(
               'AI Hỗ trợ',
               style: GoogleFonts.manrope(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF753B83),
+                color: _EditorColors.aiText,
               ),
             ),
           ],
@@ -598,20 +654,28 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
     );
   }
+}
 
-  Widget _buildSaveButton() {
+class _EditorSaveButton extends StatelessWidget {
+  final bool isSaving;
+  final VoidCallback onTap;
+
+  const _EditorSaveButton({required this.isSaving, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _isSaving ? null : _saveNote,
+      onTap: isSaving ? null : onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: _isSaving
-              ? const Color(0xFF9AE6B4).withValues(alpha: 0.5)
-              : const Color(0xFF9AE6B4), // primary-container
+          color: isSaving
+              ? _EditorColors.saveBackground.withValues(alpha: 0.5)
+              : _EditorColors.saveBackground,
           borderRadius: BorderRadius.circular(50),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1E6B43).withValues(alpha: 0.1),
+              color: _EditorColors.saveShadow.withValues(alpha: 0.1),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -620,19 +684,21 @@ class _EditorScreenState extends State<EditorScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _isSaving
+            isSaving
                 ? const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B6941)),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _EditorColors.saveText,
+                      ),
                     ),
                   )
                 : const Icon(
                     Icons.check,
                     size: 18,
-                    color: Color(0xFF1B6941), // on-primary-container
+                    color: _EditorColors.saveText,
                   ),
             const SizedBox(width: 6),
             Text(
@@ -640,7 +706,7 @@ class _EditorScreenState extends State<EditorScreen> {
               style: GoogleFonts.manrope(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF1B6941),
+                color: _EditorColors.saveText,
               ),
             ),
           ],
@@ -648,43 +714,21 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
     );
   }
+}
 
-  Widget _buildBody() {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTitleInput(),
-                const SizedBox(height: 8),
-                _buildDivider(),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        ),
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _StickyModeToolbarDelegate(
-            child: _buildModeToolbar(),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: _buildContentInput(),
-          ),
-        ),
-      ],
-    );
-  }
+// =============================================================================
+// Private extracted widgets — Editor body
+// =============================================================================
 
-  Widget _buildTitleInput() {
+class _EditorTitleField extends StatelessWidget {
+  final TextEditingController controller;
+
+  const _EditorTitleField({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
     return TextField(
-      controller: _titleController,
+      controller: controller,
       style: GoogleFonts.manrope(
         fontSize: 32,
         fontWeight: FontWeight.w700,
@@ -706,69 +750,33 @@ class _EditorScreenState extends State<EditorScreen> {
       maxLines: null,
     );
   }
+}
 
-  Widget _buildDivider() {
+class _EditorDivider extends StatelessWidget {
+  const _EditorDivider();
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       height: 4,
       width: 40,
       decoration: BoxDecoration(
-        color: const Color(0xFF9AE6B4), // primary-container
+        color: _EditorColors.dividerAccent,
         borderRadius: BorderRadius.circular(4),
       ),
     );
   }
+}
 
-  Widget _buildModeToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5EF), // surface-container-low
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: MediaQuery.of(context).size.width - 40 - 32, // screen width - body padding - container padding
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildModeIcon(Icons.keyboard_outlined, true),
-              _buildModeIcon(Icons.edit_outlined, false),
-              _buildModeIcon(Icons.border_color_outlined, false),
-              _buildModeIcon(Icons.cleaning_services_outlined, false),
-              _buildModeIcon(Icons.gesture, false),
-              _buildModeIcon(Icons.undo, false),
-              _buildModeIcon(Icons.redo, false),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+class _EditorContentField extends StatelessWidget {
+  final TextEditingController controller;
 
-  Widget _buildModeIcon(IconData icon, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: isActive 
-        ? BoxDecoration(
-            color: const Color(0xFF9AE6B4).withValues(alpha: 0.3), // primary-container/30
-            shape: BoxShape.circle,
-          )
-        : null,
-      child: Icon(
-        icon,
-        size: 20,
-        color: isActive ? const Color(0xFF1E6B43) : const Color(0xFF404941), // primary : on-surface-variant
-      ),
-    );
-  }
+  const _EditorContentField({required this.controller});
 
-  Widget _buildContentInput() {
+  @override
+  Widget build(BuildContext context) {
     return TextField(
-      controller: _contentController,
+      controller: controller,
       style: GoogleFonts.manrope(
         fontSize: 18,
         fontWeight: FontWeight.w400,
@@ -789,95 +797,42 @@ class _EditorScreenState extends State<EditorScreen> {
       minLines: 20,
     );
   }
-
-  Widget _buildBottomToolbar() {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.only(
-            left: 16, 
-            right: 16, 
-            top: 16, 
-            bottom: MediaQuery.of(context).padding.bottom + 16
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.8),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                offset: const Offset(0, -4),
-                blurRadius: 20,
-              ),
-            ],
-            border: const Border(
-              top: BorderSide(
-                color: Color(0x1A000000), // Colors.grey.withValues(alpha: 0.1) replacement for const
-                width: 1,
-              ),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildBottomIcon(Icons.check_box_outlined, true),
-              _buildBottomIcon(Icons.palette_outlined, false),
-              _buildBottomIcon(Icons.format_size, false),
-              _buildBottomIcon(Icons.format_bold, false),
-              _buildBottomIcon(Icons.format_align_left, false),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomIcon(IconData icon, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: isActive
-        ? BoxDecoration(
-            color: Colors.green.shade50, // bg-green-50
-            shape: BoxShape.circle,
-          )
-        : const BoxDecoration(
-            color: Colors.transparent,
-            shape: BoxShape.circle,
-          ),
-      child: Icon(
-        icon,
-        size: 24,
-        color: isActive ? Colors.green.shade700 : Colors.grey.shade400, // text-green-700 or text-stone-400
-      ),
-    );
-  }
 }
 
-class _StickyModeToolbarDelegate extends SliverPersistentHeaderDelegate {
+// =============================================================================
+// Sliver delegate — sticky drawing toolbar
+// =============================================================================
+
+/// Keeps the [DrawingToolbar] pinned at the top when the user scrolls.
+class _StickyToolbarDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
 
-  _StickyModeToolbarDelegate({required this.child});
+  _StickyToolbarDelegate({required this.child});
+
+  static const double _height = 76.0; // 52 (toolbar) + 24 (bottom padding)
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  double get maxExtent => _height;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return Container(
-      color: AppColors.background, // Match background so it hides text scrolling behind it
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), // padding horizontal + bottom margin
+      color: AppColors.background,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       alignment: Alignment.topCenter,
       child: child,
     );
   }
 
   @override
-  double get maxExtent => 76.0; // 52 (height of toolbar) + 24 (bottom padding) = 76
-
-  @override
-  double get minExtent => 76.0;
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
-    return true;
+  bool shouldRebuild(covariant _StickyToolbarDelegate oldDelegate) {
+    return child != oldDelegate.child;
   }
 }
